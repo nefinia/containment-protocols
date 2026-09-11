@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Replay Timestep",
+  "description": "One step emitted by the replay engine -- only information that would have been visible at this point in the real incident timeline.",
+  "type": "object",
+  "required": ["step", "timestamp", "visible_info"],
+  "properties": {
+    "step": {
+      "type": "integer",
+      "description": "0-indexed position in the replay sequence."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Incident-relative timestamp (ISO 8601)."
+    },
+    "visible_info": {
+      "type": "string",
+      "description": "Everything a protocol may condition its decision on at this step -- logs, actions taken, alerts fired. Must not leak information from later steps."
+    },
+    "ground_truth_label": {
+      "type": ["string", "null"],
+      "enum": ["benign", "unsafe", null],
+      "description": "Filled in by coordination from the incident report. Used only for scoring, never exposed to a protocol at decision time."
+    }
+  }
+}

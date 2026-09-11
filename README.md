@@ -36,7 +36,17 @@ This is a direct extension of [Epistemic Fingerprints](https://sofiagallego.com/
 
 ## Team
 
-Looking for collaborators interested in agent safety, containment, monitoring, multi-agent systems, or evaluation. Roles are open by fit, not first-come -- say what you'd want to own.
+- Replay engine -- jambohaku
+- Protocol implementation -- Muhammad
+- Causal & statistical analysis -- Melody
+- Framing & tradeoffs / clause writing -- tiramisu
+- Coordination & integration -- Sofia
+
+Full role descriptions, timeline, and open decisions: [PROJECT_GUIDELINE.md](PROJECT_GUIDELINE.md).
+
+## Interfaces
+
+The four pieces (replay engine, protocol implementation, analysis, clause writing) are built in parallel against fixed schemas rather than each other's code -- see [`schemas/`](schemas/). Branch per role off `main` (`replay-engine`, `protocol-impl`, `analysis`, `clauses`), small PRs.
 
 ## Infrastructure
 
@@ -59,4 +69,4 @@ Model choice (`MODEL_NAME` in `serve_model.py`) is a placeholder pending team di
 
 ## Status
 
-Pre-sprint planning. Incident timeline data, the three-protocol harness, and the metrics module are in progress.
+Sprint underway (Sept 11-13). Incident timeline / ground-truth labeling, the replay harness, and the protocol implementations are in progress.
