@@ -1,5 +1,7 @@
 # Incident sources
 
+`../ground_truth_timeline.source_summary.json` is the earlier draft, kept as a checkup copy: its `visible_info` text stays close to how the source articles themselves describe each event (hindsight-labeled, e.g. "attack", "malicious"). `../ground_truth_timeline.json` is the version actually used by the replay engine -- same events/order/timestamps/labels, but reworded as plausible-at-the-time technical signal so protocols have to interpret rather than pattern-match on verdict words. If a labeling call in the live file looks off, cross-check it against the source_summary file and this page.
+
 Raw notes pulled from public reporting, used to build `../ground_truth_timeline.json`. Kept here for provenance -- if a labeling call looks wrong, check back against the actual source rather than just editing the JSON.
 
 - **OpenAI-side timeline (training through discovery), May-July 2026**: Simon Willison's consolidated writeup -- https://simonwillison.net/2026/Aug/7/openai-timeline/
