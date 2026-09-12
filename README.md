@@ -48,6 +48,36 @@ Full role descriptions, timeline, and open decisions: [PROJECT_GUIDELINE.md](PRO
 
 The four pieces (replay engine, protocol implementation, analysis, clause writing) are built in parallel against fixed schemas rather than each other's code -- see [`schemas/`](schemas/). Branch per role off `main` (`replay-engine`, `protocol-impl`, `analysis`, `clauses`), small PRs.
 
+### Replay engine
+
+The harness is implemented in [`protocols/replay_engine.py`](protocols/replay_engine.py). It loads and validates a timeline, then calls a protocol once per timestep:
+
+```python
+from protocols.replay_engine import ReplayEngine
+
+engine = ReplayEngine.from_json("data/ground_truth_timeline.json")
+
+def protocol(context):
+	# context.current and context.history contain no ground-truth labels.
+	return {
+		"decision": "continue",
+		"reasoning": "No escalation signal detected.",
+	}
+
+result = engine.run(protocol)
+scored_rows = result.scoring_rows()  # join labels only after the run
+```
+
+At step `n`, `context.history` contains exactly steps `0..n`; no future timestep or `ground_truth_label` is present in the protocol-facing objects. The engine validates that each returned decision matches the current step and uses one of the five decisions in `schemas/decision.schema.json`.
+
+For a smoke run with the default no-op protocol:
+
+```bash
+python protocols/replay_engine.py data/ground_truth_timeline.json
+```
+
+Use `--scored` only for post-run analysis output. Protocol execution itself never receives scored rows.
+
 ## Infrastructure
 
 Shared Modal-hosted vLLM endpoint, reused from epistemic-fingerprints (`protocols/serve_model.py`, `protocols/modal_client.py`) -- one deployment, one URL, the whole team hits the same model rather than everyone managing separate API keys and billing.
