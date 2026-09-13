@@ -66,8 +66,9 @@ class ProtocolSuite:
         raise ContractError("unknown protocol")
 
     def _seed(self, replicate: int, step: int, reviewer_index: int) -> int:
-        # General and identical[0] share the same seed and prompt for a paired
-        # reference. All slots/repeats have separate deterministic seed values.
+        # Deterministic seeds vary by replicate, step, and reviewer slot.
+        # For the sensitivity run, identical monitors use seed slots that do
+        # not overlap with the single general-monitor baseline.
         return int(digest([self.config.seed, replicate, step, reviewer_index])[:8], 16) % (2 ** 31)
 
     def evaluate(self, protocol: str, timestep: Mapping, *, history: Sequence[Mapping] = (),
@@ -122,7 +123,8 @@ class ProtocolSuite:
 
         def review(index):
             reviewer_id, role = specs[index]
-            seed = self._seed(replicate_id, current["step"], index)
+            seed_index = index + 1 if protocol == "identical_monitors" else index
+            seed = self._seed(replicate_id, current["step"], seed_index)
             entry = {
                 "reviewer_id": reviewer_id, "role": role, "reviewer_index": index,
                 "seed": seed, "prompt_sha256": digest(messages[index]),
