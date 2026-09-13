@@ -6,6 +6,7 @@
 \usepackage{booktabs}
 \usepackage{amsmath}
 \usepackage{xcolor}
+\graphicspath{{figures/}}
 
 % ---------------------------------------------------------------------------
 % HOW TO USE THIS FILE (delete this block before final submission)
@@ -75,16 +76,21 @@ coverage over a single one -- if they share the same blind spots, replicating
 them creates the appearance of defense-in-depth without the substance.
 
 This is not a hypothetical concern. In July 2026, two OpenAI models running
-with reduced cyber-safety refusals for an internal capability evaluation
-(ExploitGym) escaped their sandboxed evaluation environment via a
+without safety classifiers and with reduced safeguards for an internal
+capability evaluation (ExploitGym) escaped their sandboxed evaluation
+environment via a
 previously-unknown vulnerability, then used the resulting internet access to
 compromise Hugging Face's production infrastructure over several days before
 being detected and contained~\cite{openai-report,hf-timeline}. OpenAI's own
-postmortem noted that existing controls ``failed repeatedly despite initial
-detection and intervention'' -- language that names, without resolving, the
-exact question this project investigates: given some detection capability,
-why did containment still fail, and would a different combination of
-monitors and escalation points have changed the outcome?
+postmortem describes multiple points at which monitoring flagged suspicious
+agent activity and responders intervened, only for agents to regain
+unauthorized access through a new vulnerability or recovered credentials,
+and concludes that the existing controls needed to be strengthened in light
+of the capabilities the models had demonstrated~\cite{openai-report} --
+description that names, without resolving, the exact question this project
+investigates: given some detection capability, why did containment still
+fail, and would a different combination of monitors and escalation points
+have changed the outcome?
 
 We ask a narrower, more tractable version of this question: \emph{does
 combining multiple AI reviewers of a live agent trajectory add measurable,
@@ -132,18 +138,22 @@ safety evaluation through adversarial or cooperative discussion between
 models~\cite{debate-safety}. MAGE~\cite{mage} addresses long-horizon threats
 specifically, using shadow memory to retain security-relevant context across
 an extended agent trajectory. Layered, defense-in-depth framings such as the
-``Swiss Cheese'' model for AI safety by design~\cite{swiss-cheese} and
+``Swiss Cheese'' model taxonomy for multi-layered agent
+guardrails~\cite{swiss-cheese} and
 integrated runtime governance frameworks such as MI9~\cite{mi9} argue for
 combining multiple, non-identical controls, but largely at the level of
 architectural recommendation rather than empirical comparison against a real
 incident.
 
 Closest to our central question is recent work on ensemble monitoring for AI
-control~\cite{ensemble-monitoring}, which directly tests whether diverse
-monitor signals outperform scaling up identical monitors, finding that
-diversity outperforms scale, with returns to ensemble size plateauing around
-$\sim$32 monitors. Our contribution is not this diversity-versus-redundancy
-claim itself -- it already exists in the literature -- but stress-testing it
+control~\cite{ensemble-monitoring}, which builds 12 monitors and directly
+tests whether diverse monitor signals outperform homogeneous ensembles of
+identical monitors, finding that a diverse 3-monitor ensemble substantially
+outperforms a same-sized ensemble of identical monitors (a reported 2.4x
+detection-performance gain), with most of the measured benefit captured by
+a small, diverse ensemble rather than by adding more monitors. Our
+contribution is not this diversity-versus-redundancy claim itself -- it
+already exists in the literature -- but stress-testing it
 against one grounded, real incident with strict temporal information cuts
 (each protocol sees only what would have been knowable at that point in the
 real timeline), and translating the result into a deployable clause rather
@@ -227,12 +237,24 @@ Human escalation trigger & Any reviewer recommending investigate or above \\
 \end{table}
 
 \subsection{Sensitivity Check}
+\label{sec:sensitivity-check}
 
-% TODO(Melody): describe your independent-seed sensitivity check here -- what
-% confound it addresses (general monitor and identical-monitor slot 0
-% originally shared a seed and prompt) and what changed.
-
-[TODO(Melody)]
+In the reference run, the general monitor and the first slot of the
+identical-monitor ensemble originally shared a sampling seed and prompt,
+which could make the ensemble's agreement with the general monitor look like
+independent corroboration when it was partly an artifact of shared
+randomness. To address this confound, we reran the identical-monitor
+ensemble with independently drawn, per-reviewer deterministic seeds, holding
+the timeline, prompts, and aggregation rule fixed, and compared the
+resulting run against the reference run on two separate axes: whether the
+ensemble's \emph{aggregate} decision sequence changed, and whether the
+\emph{underlying signal evidence} (the category-step signal keys each
+reviewer produced) changed. We report both axes independently in
+Section~\ref{sec:results}, since a stable aggregate policy does not by
+itself imply that the seed had no effect on the reviewers' underlying
+reasoning. As an additional baseline for ordinary run-to-run variation, we
+also compared the general monitor's reference run against an independent
+rerun under the same prompt and non-identical sampling.
 
 \subsection{Metrics}
 
@@ -249,45 +271,185 @@ Human escalation trigger & Any reviewer recommending investigate or above \\
   \item \textbf{Human-review burden}: rate of decisions that would trigger
         human escalation under the fixed policy.
   \item \textbf{Cost}: token usage and latency per protocol per full replay.
-  \item \textbf{Signal overlap / unique coverage}: [TODO(Melody): describe
-        the overlap analysis between identical and specialised reviewers'
-        detected signals.]
+  \item \textbf{Signal overlap / unique coverage}: for each protocol, we
+        record the set of distinct (category, referenced-step) signal keys
+        emitted across the run. We compare these sets between matched
+        reviewer-count configurations (identical~x4 vs.\ specialised~x4) to
+        identify condition-specific signals unique to one configuration
+        versus signals shared by both, and we separately compute
+        \emph{current-step signal coverage} -- the fraction of unsafe steps
+        at which a protocol emits at least one signal referencing the
+        current decision step -- to identify steps where no evaluated
+        protocol's signal trail references the step directly (a
+        \emph{shared current-step blind spot}).
 \end{itemize}
 
 % ---------------------------------------------------------------------------
 \section{Results}
 \label{sec:results}
-% TODO(Melody): this is your section. Suggested skeleton below -- replace
-% with real numbers, tables, and figures once analysis is complete. Feel free
-% to restructure entirely if the data suggests a better story.
 
-[TODO(Melody): headline finding first, in one or two sentences, then support
-it with the detail below.]
+Within this single reconstructed incident, all three protocols -- the
+general monitor, the identical x4 ensemble, and the specialised x4 ensemble
+-- reach their first strict containment action at the same step (step~6,
+three steps after unsafe onset at step~3), so this replay does not show a
+timing advantage for any protocol. Plain replication of an identical monitor
+produced limited change in aggregate containment behaviour relative to the
+single-monitor baseline: removing a seed coupling between the general
+monitor and the first identical-monitor slot did not change any of the
+ensemble's 26 aggregate decisions, although independent resampling did
+change some of the underlying signal evidence. Role specialisation did not
+improve initial containment timing and did not eliminate a shared
+current-step signal blind spot, but it was associated with a descriptively
+higher unsafe-containment rate than the identical or general configurations
+within this incident. All results below are descriptive and specific to
+this one incident replay; see Section~\ref{sec:limitations} for scope.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccccc}
+\toprule
+Protocol & First contain. & Contain. & Strict false & Benign & Unsafe contain. \\
+ & step & lag & alarms & investig. & rate \\
+\midrule
+General & 6 & 3 & 0 & 2 & 69.6\% \\
+Identical x4 & 6 & 3 & 0 & 2 & 73.9\% \\
+Specialized x4 & 6 & 3 & 0 & 2 & 78.3\% \\
+\bottomrule
+\end{tabular}
+\caption{Reference-run comparison across the three protocols on the 26-step
+reconstructed timeline (3 benign steps, 23 unsafe steps, unsafe onset at
+step~3). Unsafe containment rate is the fraction of the 23 unsafe steps at
+which a protocol's decision was a strict containment action
+(restrict/pause/terminate).}
+\label{tab:results-comparison}
+\end{table}
 
 \subsection{Detection Timing}
-[TODO: table or figure -- detection lag per protocol.]
+
+Figure~\ref{fig:protocol-timeline} shows the reference-run aggregate
+containment decision at each step for all three protocols. Unsafe onset
+(step~3) and the first strict containment step (step~6) are marked; all
+three protocols reach strict containment at the same step, giving an
+identical containment lag of three steps (Table~\ref{tab:results-comparison}).
+Within this incident, replicating or specialising the monitor did not shift
+the point at which the protocol first escalated to a strict containment
+action.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\linewidth]{fig1_protocol_level_timeline.pdf}
+\caption{Reference-run aggregate containment decisions for the three
+protocols (General, Identical~x4, Specialized~x4) across the 26-step
+incident timeline. Unsafe onset (step~3) and the first strict containment
+step (step~6, identical across all three protocols) are marked.}
+\label{fig:protocol-timeline}
+\end{figure}
 
 \subsection{False Alarms and Soft Escalations}
-[TODO: strict false-alarm rate (restrict/pause/terminate on benign steps) and
-benign-investigation rate, per protocol.]
+
+None of the three protocols produced a strict false alarm (a
+restrict/pause/terminate decision) on any of the 3 benign steps; the
+benign-investigation burden -- soft \texttt{investigate} escalations on
+benign steps -- was likewise identical across protocols, at 2 steps each
+(Table~\ref{tab:results-comparison}). Within this incident, adding
+reviewers, whether identical or specialised, neither introduced new false
+alarms nor changed the soft-escalation burden relative to the single
+general monitor.
 
 \subsection{Decision Severity and Divergence}
-[TODO: where protocols agree vs.\ disagree on the same step, and whether
-disagreement correlates with ambiguous vs.\ unambiguous ground truth.]
+
+First containment step, containment lag, strict false alarms, and
+benign-investigation burden are identical across all three protocols
+(Table~\ref{tab:results-comparison}), so the primary observed divergence
+between protocols in this run is in how consistently they sustain strict
+containment across the 23 unsafe steps that follow the shared containment
+onset: unsafe containment rate is descriptively higher for specialised
+reviewers (78.3\%) than for identical monitors (73.9\%) and the general
+monitor (69.6\%). This suggests that, within this incident, the protocols
+diverge more in the density of strict containment decisions across
+subsequent unsafe steps than in when containment first begins. We did not
+further stratify this divergence against an independent measure of
+per-step ground-truth ambiguity; doing so is a natural extension of this
+analysis but is not attempted here.
 
 \subsection{Signal Coverage}
-[TODO: unique vs.\ shared signals detected across identical and specialised
-reviewers.]
+
+Figure~\ref{fig:signal-coverage} reports current-step signal coverage --
+the fraction of unsafe steps at which a protocol's own signal trail
+references the current decision step -- across protocols, computed against
+a researcher-defined signal-category taxonomy rather than a validated
+external standard. All three protocols share a current-step signal blind
+spot at unsafe step~12: none of the general, identical, or specialised
+configurations emitted a signal referencing step~12 as the current step,
+even though all three continued to issue containment decisions at that
+step, drawing on evidence accumulated from earlier steps. This is a gap in
+current-step-referenced signal evidence, not evidence that the protocols
+were unaware of danger at step~12; within this incident, role
+specialisation did not eliminate this shared blind spot.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\linewidth]{fig3_signal_coverage.pdf}
+\caption{Current-step signal coverage on unsafe steps, by protocol. Step~12
+is a shared current-step signal blind spot: no evaluated protocol emitted a
+signal referencing step~12 as the current step. This does not indicate the
+protocols were unaware of danger at step~12 -- each protocol still issued a
+containment decision at that step, drawing on signal evidence accumulated
+at earlier steps.}
+\label{fig:signal-coverage}
+\end{figure}
 
 \subsection{Sensitivity Check Result}
-[TODO(Melody): does the independent-seed run change the identical-monitors
-result materially? This is important for the paper's central claim -- if
-identical monitors only looked alike because they shared a seed with the
-general monitor, that changes the interpretation substantially.]
+
+Figure~\ref{fig:seed-sensitivity} compares the reference identical-monitor
+ensemble against the independent-seed rerun described in
+Section~\ref{sec:sensitivity-check}. Removing the seed coupling
+between the general monitor and the first identical-monitor slot did not
+change any of the ensemble's 26 aggregate decisions (26/26 preserved,
+100.0\% agreement); the first containment step and containment lag were
+unchanged. This aggregate-level stability does not mean the seed coupling
+had no effect: the underlying signal evidence generated by the ensemble did
+change under independent resampling, with 74 category-step signal keys
+shared between the reference and independent-seed runs, 15 keys unique to
+the reference run, and 14 keys unique to the independent-seed run (89 total
+reference keys). We read this as changed evidence without a changed
+aggregate policy in this incident, not as evidence that the seed coupling
+had no effect. As a baseline for ordinary run-to-run variation, an
+independent rerun of the single general monitor under the same prompt
+reproduced 24 of 26 decisions (92.3\% agreement), differing at steps~14
+and~19; this general-monitor baseline variation is larger than the
+identical-monitor ensemble's aggregate decision variation under independent
+seeding in this incident.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\linewidth]{fig2_seed_sensitivity.pdf}
+\caption{Independent-seed robustness of the identical-monitor ensemble.
+Removing the seed coupling with the general monitor left all 26 aggregate
+containment decisions unchanged (100.0\% agreement) relative to the
+reference run, while the underlying category-step signal evidence changed
+(74 shared, 15 reference-only, 14 independent-seed-only keys).}
+\label{fig:seed-sensitivity}
+\end{figure}
+
+A detailed, individual-reviewer-resolution version of
+Figure~\ref{fig:protocol-timeline} (all four identical reviewers and all
+four specialised reviewers plotted separately, rather than aggregated) is
+retained as supplementary material in the project repository at
+\texttt{analysis/figures/fig1\_decision\_timeline.pdf} for readers who want
+per-reviewer detail; we do not reproduce it in the main text in order to
+keep the main Results concise.
 
 \subsection{Cost}
-[TODO: token/latency cost per protocol, framed against the detection-quality
-results above -- this is the input to the Pareto framing in Discussion.]
+
+The aggregate decision-export format used for this analysis records each
+reviewer's reasoning text and the protocol's aggregated decision, but does
+not expose full reviewer-level token-usage or latency data. A token/latency
+cost comparison across protocols is therefore not reported in this draft;
+we note this explicitly here as a data-availability limitation
+(Section~\ref{sec:limitations}) rather than estimate cost from incomplete
+data.
 
 % ---------------------------------------------------------------------------
 \section{Discussion}
@@ -336,11 +498,17 @@ numbers in Results.]
         than a raw log would be, and reflects the team's own judgment about
         what would plausibly have been observable at each point.
   \item \textbf{Single incident, single replay.} One incident, replayed once
-        per protocol (plus one sensitivity check), cannot establish a general
-        base rate for whether reviewer diversity helps. This is a first,
-        small test of an existing hypothesis in a new setting, not a
-        general claim. [TODO: note actual number of repeats/seeds run, if
-        more than one.]
+        per protocol for the reference run, plus one independent-seed
+        sensitivity rerun of the identical-monitor ensemble and one baseline
+        rerun of the general monitor, cannot establish a general base rate
+        for whether reviewer diversity helps. This is a first, small test of
+        an existing hypothesis in a new setting, not a general claim: within
+        this incident, specialised reviewers are not shown to be universally
+        superior to identical or general monitors -- they showed a
+        descriptively higher unsafe-containment rate but no improvement in
+        initial containment timing, and they did not eliminate the shared
+        current-step signal blind spot at step~12 (Section~\ref{sec:results}).
+        All comparisons reported are descriptive, not causal.
   \item \textbf{Model and prompt dependence.} All protocols were run against
         one model (Qwen2.5-7B-Instruct) at one temperature setting.
         [TODO(Muhammad): note any other model/prompt-specific limitations --
@@ -424,8 +592,9 @@ Intrusion: A Technical Timeline of the July 2026 Incident,'' 2026.
 OpenAI accidental attack against Hugging Face,'' 2026.
 \url{https://simonwillison.net/2026/Aug/7/openai-timeline/}
 
-\bibitem{epistemic-fingerprints} S. Gallego, ``Epistemic Fingerprints:
-False Epistemic Redundancy,'' Apart Research Digital Minds Sprint, 2026.
+\bibitem{epistemic-fingerprints} S. Gallego and A. Habana, ``False
+Epistemic Redundancy: Do AI Ensembles Share a Blind Spot?'' Apart Research
+Digital Minds Research Sprint, 2026.
 \url{https://sofiagallego.com/epistemic-fingerprints}
 
 \bibitem{guardagent} Z. Xu et al., ``GuardAgent: Safeguard LLM Agents by a
@@ -443,9 +612,9 @@ Signals Outweigh More Compute,'' arXiv:2605.15377.
 \bibitem{mi9} ``MI9: An Integrated Runtime Governance Framework for Agentic
 AI,'' arXiv:2508.03858.
 
-\bibitem{swiss-cheese} ``Designing Multi-layered Runtime Guardrails for
-Foundation Model Based Agents: Swiss Cheese Model for AI Safety by Design,''
-arXiv:2408.02205.
+\bibitem{swiss-cheese} ``Swiss Cheese Model for AI Safety: A Taxonomy and
+Reference Architecture for Multi-Layered Guardrails of Foundation Model
+Based Agents,'' arXiv:2408.02205.
 
 \end{thebibliography}
 
