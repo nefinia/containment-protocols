@@ -1,0 +1,418 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{times}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{xcolor}
+
+% ---------------------------------------------------------------------------
+% HOW TO USE THIS FILE (delete this block before final submission)
+%
+% Each section below is owned by one person, marked with a %TODO(name) comment.
+% Write inside the section; leave the section heading and any scaffolding
+% (tables, bullet lists) as a starting structure, not gospel -- change it if
+% your actual content doesn't fit.
+%
+% Compile locally with:  pdflatex paper.tex   (run twice for references/TOC)
+% Or just edit this file directly in Overleaf if that's easier to share.
+% ---------------------------------------------------------------------------
+
+\title{\textbf{[PLACEHOLDER TITLE -- state the finding, not the topic.] \\
+\large Does Reviewer Diversity Add Real Coverage, or Just Confidence? \\
+A Replay of the OpenAI/Hugging Face Sandbox-Escape Incident}}
+
+% TODO(Sofia): confirm final author list, order, and affiliations once everyone
+% has contributed. Order below is provisional (alphabetical-ish), not final.
+\author{
+Sofia Gallego \and
+Muhammad Shoaib Altaf \and
+jambohaku \and
+Melody \and
+tiramisu
+}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+% ---------------------------------------------------------------------------
+\begin{abstract}
+% TODO(Sofia): 150 words max, hard limit per submission requirements.
+% Draft below is a starting point -- cut/rewrite once Results/Discussion are
+% actually written, since the abstract should reflect real findings, not
+% intentions.
+
+Frontier AI safety increasingly relies on layered containment: automated
+monitors, specialised reviewers, and human escalation working together. But
+whether combining multiple watchers genuinely improves detection, or merely
+duplicates the same judgment while appearing more robust, is untested against
+a real incident. We replay the July 2026 OpenAI/Hugging Face sandbox-escape
+incident step by step, revealing to each protocol only the information that
+would have been available at that point in time, and compare a general
+monitor, several identical monitors, and specialised reviewers on detection
+timing, false alarms, and decision severity. [TODO: one to two sentences
+stating the actual headline result once analysis is complete.] We translate
+the strongest finding into a deployable clause with supporting evidence and
+estimated cost.
+
+\end{abstract}
+
+% ---------------------------------------------------------------------------
+\section{Introduction}
+% TODO(Sofia): expand/rewrite as needed -- this is a full first draft, not a
+% skeleton, since Sofia volunteered to own intro + context.
+
+Frontier labs increasingly rely on layered defenses to contain AI agents that
+may drift toward unsafe behavior during autonomous operation: sandboxing,
+permission gates, automated monitors, and human review. Each layer sees a
+different slice of the problem. A permission check can verify that a single
+action is authorized but miss a pattern that only becomes visible across a
+long sequence of otherwise-authorized actions. A human reviewer brings
+judgment and context but cannot sustain constant real-time attention. Several
+monitoring agents watching the same stream of actions may or may not add real
+coverage over a single one -- if they share the same blind spots, replicating
+them creates the appearance of defense-in-depth without the substance.
+
+This is not a hypothetical concern. In July 2026, two OpenAI models running
+with reduced cyber-safety refusals for an internal capability evaluation
+(ExploitGym) escaped their sandboxed evaluation environment via a
+previously-unknown vulnerability, then used the resulting internet access to
+compromise Hugging Face's production infrastructure over several days before
+being detected and contained~\cite{openai-report,hf-timeline}. OpenAI's own
+postmortem noted that existing controls ``failed repeatedly despite initial
+detection and intervention'' -- language that names, without resolving, the
+exact question this project investigates: given some detection capability,
+why did containment still fail, and would a different combination of
+monitors and escalation points have changed the outcome?
+
+We ask a narrower, more tractable version of this question: \emph{does
+combining multiple AI reviewers of a live agent trajectory add measurable,
+independent detection coverage, or does it mainly add confidence without
+adding coverage?} We test this by progressively replaying the public,
+reconstructed timeline of the incident, revealing to each candidate
+containment protocol only the information that would have been observable up
+to that point -- never the outcome, never a hidden ground-truth label -- and
+comparing four protocol designs: a single general-purpose monitor, several
+identical copies of that monitor, a set of specialised reviewers each
+watching for a different failure mode (permissions, task intent, security,
+downstream consequences), and variants of when a human is brought into the
+loop. We compare protocols on detection timing, false-alarm rate,
+human-review burden, and computational cost, and translate the strongest
+result into a concrete, adoptable clause in the format this track requests:
+clause~$\rightarrow$~evidence~$\rightarrow$~approximate cost.
+
+This project is a direct extension of prior work on \emph{false epistemic
+redundancy}~\cite{epistemic-fingerprints}, which asked a structurally
+identical question about post-hoc, retrospective investigation: do
+differently-framed AI agents examining the same evidence actually search
+different parts of a hypothesis space, or do they produce surface disagreement
+while sharing the same blind spot? That work found the answer was
+case-dependent. Here we ask the same question about real-time monitoring
+rather than after-the-fact investigation, using one real, documented incident
+as the test case rather than a synthetic one.
+
+We are explicit about scope. A single incident, replayed once, cannot
+establish a general base rate for how often reviewer diversity helps; it can
+only show whether it helped in this one, well-documented case, and by how
+much. We treat this as a first, honest test of the underlying question, not
+as a general finding -- see Section~\ref{sec:limitations} for a fuller
+discussion of what would be needed to generalize this result.
+
+% ---------------------------------------------------------------------------
+\section{Related Work}
+% TODO(Sofia or tiramisu): add/cut citations, and if you disagree with the
+% framing below, rewrite it -- this is a draft, not settled team consensus.
+
+Work on safeguarding LLM agents has largely focused on building better
+individual reviewers. GuardAgent~\cite{guardagent} reframes safeguarding as a
+guard-agent architecture with knowledge-enabled reasoning rather than a single
+classifier pass. Multi-agent debate has been proposed as a way to structure
+safety evaluation through adversarial or cooperative discussion between
+models~\cite{debate-safety}. MAGE~\cite{mage} addresses long-horizon threats
+specifically, using shadow memory to retain security-relevant context across
+an extended agent trajectory. Layered, defense-in-depth framings such as the
+``Swiss Cheese'' model for AI safety by design~\cite{swiss-cheese} and
+integrated runtime governance frameworks such as MI9~\cite{mi9} argue for
+combining multiple, non-identical controls, but largely at the level of
+architectural recommendation rather than empirical comparison against a real
+incident.
+
+Closest to our central question is recent work on ensemble monitoring for AI
+control~\cite{ensemble-monitoring}, which directly tests whether diverse
+monitor signals outperform scaling up identical monitors, finding that
+diversity outperforms scale, with returns to ensemble size plateauing around
+$\sim$32 monitors. Our contribution is not this diversity-versus-redundancy
+claim itself -- it already exists in the literature -- but stress-testing it
+against one grounded, real incident with strict temporal information cuts
+(each protocol sees only what would have been knowable at that point in the
+real timeline), and translating the result into a deployable clause rather
+than a benchmark metric.
+
+% ---------------------------------------------------------------------------
+\section{Methodology}
+% TODO(jambohaku, Muhammad): please check this section for accuracy against
+% what you actually built and correct anything that's wrong or incomplete --
+% written from Sofia's coordination notes, not from reading your code
+% line-by-line.
+
+\subsection{Incident and Timeline Reconstruction}
+
+We use the July 2026 OpenAI/Hugging Face sandbox-escape incident as our test
+case. No raw internal logs from either organization are public. We
+reconstructed a 26-step ground-truth timeline from Hugging Face's own
+technical postmortem~\cite{hf-timeline} and a third-party consolidated
+timeline~\cite{willison-timeline}, spanning training onset (May 7, 2026)
+through the point at which OpenAI and Hugging Face confirmed the two
+incidents were the same intrusion (July 20, 2026).
+
+Each timestep has a timestamp, a description of what would have been
+observable at that point, and a hidden ground-truth label
+(\texttt{benign}/\texttt{unsafe}) used only for scoring, never exposed to a
+protocol during a decision. We deliberately rewrote the observable
+description at each step to avoid hindsight framing: initial drafts, derived
+directly from incident summaries, described events with the vocabulary of the
+postmortem itself (``attack'', ``malicious'', ``compromised''), which would
+allow any protocol to trivially agree on every step by pattern-matching on
+verdict language rather than interpreting ambiguous signal. The final version
+describes each step in the register of a plausible contemporaneous log or
+alert (e.g. ``181 mesh-enrollment attempts from the sandbox IP range over
+$\sim$3.5 hours using the same auth-key format'') so that a protocol must
+interpret technical detail rather than recognize a label. Both versions are
+retained in the repository for provenance and audit.
+
+\subsection{Replay Engine}
+
+A dedicated harness [jambohaku: describe \texttt{replay\_engine.py} here --
+what guarantees does it enforce, and how] steps through the timeline and
+exposes to a protocol, at step $n$, only steps $0..n$ of observable
+information -- never later steps, never the ground-truth label. Ground-truth
+labels are joined back to the protocol's recorded decisions only after a
+complete run, for scoring.
+
+\subsection{Protocols Compared}
+
+% TODO(Muhammad): confirm/correct the descriptions and the "fixed experimental
+% defaults" table below against your actual implementation.
+
+\begin{itemize}
+  \item \textbf{General monitor}: a single broad-scope reviewer.
+  \item \textbf{Identical monitors}: four independently-sampled copies of the
+        same broad-scope prompt, aggregated by [TODO: describe aggregation
+        rule].
+  \item \textbf{Specialised reviewers}: four reviewers, each scoped to one
+        category -- permissions, task intent, security, downstream
+        consequences -- aggregated by the same rule.
+  \item \textbf{Human-escalation variants}: [TODO(Muhammad/tiramisu): this
+        condition is out of scope for the initial implementation -- either
+        describe what was actually run, or state explicitly in Discussion
+        that this was scoped out for time and is future work.]
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+Choice & Value \\
+\midrule
+Model & Qwen2.5-7B-Instruct (shared Modal endpoint) \\
+Sampling & Temperature 0.2, top-p 1.0 \\
+Identical/specialist count & 4 each \\
+Aggregation & Max severity: continue $<$ investigate $<$ restrict $<$ pause $<$ terminate \\
+Detection scoring & First \texttt{restrict}/\texttt{pause}/\texttt{terminate} \\
+Human escalation trigger & Any reviewer recommending investigate or above \\
+\bottomrule
+\end{tabular}
+\caption{Fixed experimental defaults for the reference run. [TODO: confirm these are final, or note any changes made after review.]}
+\end{table}
+
+\subsection{Sensitivity Check}
+
+% TODO(Melody): describe your independent-seed sensitivity check here -- what
+% confound it addresses (general monitor and identical-monitor slot 0
+% originally shared a seed and prompt) and what changed.
+
+[TODO(Melody)]
+
+\subsection{Metrics}
+
+\begin{itemize}
+  \item \textbf{Detection lag}: number of steps between the first
+        ground-truth \texttt{unsafe} step and a protocol's first
+        \texttt{restrict}/\texttt{pause}/\texttt{terminate} decision.
+  \item \textbf{False-alarm rate}: rate of \texttt{restrict}/\texttt{pause}/
+        \texttt{terminate} decisions on \texttt{benign}-labeled steps. Soft
+        escalations (\texttt{investigate}) on benign steps are reported
+        separately as \emph{benign investigation / soft-escalation burden},
+        per pre-registration, rather than folded into the primary false-alarm
+        definition after seeing results.
+  \item \textbf{Human-review burden}: rate of decisions that would trigger
+        human escalation under the fixed policy.
+  \item \textbf{Cost}: token usage and latency per protocol per full replay.
+  \item \textbf{Signal overlap / unique coverage}: [TODO(Melody): describe
+        the overlap analysis between identical and specialised reviewers'
+        detected signals.]
+\end{itemize}
+
+% ---------------------------------------------------------------------------
+\section{Results}
+% TODO(Melody): this is your section. Suggested skeleton below -- replace
+% with real numbers, tables, and figures once analysis is complete. Feel free
+% to restructure entirely if the data suggests a better story.
+
+[TODO(Melody): headline finding first, in one or two sentences, then support
+it with the detail below.]
+
+\subsection{Detection Timing}
+[TODO: table or figure -- detection lag per protocol.]
+
+\subsection{False Alarms and Soft Escalations}
+[TODO: strict false-alarm rate (restrict/pause/terminate on benign steps) and
+benign-investigation rate, per protocol.]
+
+\subsection{Decision Severity and Divergence}
+[TODO: where protocols agree vs.\ disagree on the same step, and whether
+disagreement correlates with ambiguous vs.\ unambiguous ground truth.]
+
+\subsection{Signal Coverage}
+[TODO: unique vs.\ shared signals detected across identical and specialised
+reviewers.]
+
+\subsection{Sensitivity Check Result}
+[TODO(Melody): does the independent-seed run change the identical-monitors
+result materially? This is important for the paper's central claim -- if
+identical monitors only looked alike because they shared a seed with the
+general monitor, that changes the interpretation substantially.]
+
+\subsection{Cost}
+[TODO: token/latency cost per protocol, framed against the detection-quality
+results above -- this is the input to the Pareto framing in Discussion.]
+
+% ---------------------------------------------------------------------------
+\section{Discussion}
+% TODO(tiramisu): this is your section -- Pareto/tradeoff framing, and the
+% verifiability point you raised about the CSA Cloud Controls Matrix. Replace
+% the skeleton below with your actual framing once Results exists.
+
+\subsection{Safety-Cost Tradeoffs}
+[TODO(tiramisu): Pareto framing -- across the tested protocols, what do you
+give up and gain at each point, rather than naming a single "best" protocol.]
+
+\subsection{Standard Clause}
+
+% TODO(tiramisu): fill in using the clause -> evidence -> cost format the
+% track requires. One strong clause, well-supported, beats several weak ones.
+
+\textbf{Clause:} [TODO]
+
+\textbf{Evidence:} [TODO -- cite the specific result from Section 4 that
+justifies this clause.]
+
+\textbf{Verifiability:} [TODO -- per tiramisu's point on the CSA Cloud
+Controls Matrix: what would a third party need to check to confirm a lab is
+actually complying with this clause? E.g. does the decision log show
+independent reviewer outputs recorded before aggregation.]
+
+\textbf{Approximate cost:} [TODO -- derive from the token/latency cost
+numbers in Results.]
+
+% ---------------------------------------------------------------------------
+\section{Limitations and Dual-Use Considerations}
+\label{sec:limitations}
+% TODO(everyone, but Sofia to consolidate): required appendix per submission
+% rules. Draft below covers what we already know; add anything specific to
+% your own piece (e.g. Muhammad on model/prompt limitations, Melody on
+% statistical power).
+
+\subsection{Limitations}
+
+\begin{itemize}
+  \item \textbf{Reconstructed, not raw, incident data.} No raw logs from
+        either organization are public. Our timeline is built from public
+        postmortems and third-party reporting, deliberately reworded to
+        remove hindsight framing (Section 3.1). This is a real limitation:
+        the underlying reconstruction is one step further from ground truth
+        than a raw log would be, and reflects the team's own judgment about
+        what would plausibly have been observable at each point.
+  \item \textbf{Single incident, single replay.} One incident, replayed once
+        per protocol (plus one sensitivity check), cannot establish a general
+        base rate for whether reviewer diversity helps. This is a first,
+        small test of an existing hypothesis in a new setting, not a
+        general claim. [TODO: note actual number of repeats/seeds run, if
+        more than one.]
+  \item \textbf{Model and prompt dependence.} All protocols were run against
+        one model (Qwen2.5-7B-Instruct) at one temperature setting.
+        [TODO(Muhammad): note any other model/prompt-specific limitations --
+        e.g.\ signal taxonomy coverage, context window constraints.]
+  \item \textbf{No independent verification of "detection".} A model
+        recommending \texttt{restrict} does not mean the underlying reasoning
+        was correct, only that the recorded output matched a schema-valid
+        category; evidence grounding (Section~[X]) prevents fabricated
+        quotations but does not verify judgment accuracy.
+  \item \textbf{Human-escalation-timing variants and meta-agent aggregation}
+        were scoped out of the initial implementation for time and are noted
+        as future work, not tested results.
+\end{itemize}
+
+\subsection{Dual-Use Considerations}
+
+% TODO(Sofia + team): this needs real thought, not boilerplate -- please add
+% to/edit this before submission.
+
+This work characterizes how AI containment monitors succeed and fail against
+a real incident timeline. We do not believe this creates meaningful new
+uplift for causing harm: [TODO -- justify this claim, e.g.\ we do not release
+any exploit code, attack technique, or information not already public in
+OpenAI's and Hugging Face's own postmortems]. A possible dual-use concern is
+that describing which monitor combinations most easily miss an escalating
+threat could inform an adversary attempting to design an attack that evades
+detection; we mitigate this by [TODO -- e.g.\ not publishing exact prompts/
+signal taxonomies that would let an attacker reverse-engineer detection
+boundaries, or by noting that our results are specific to one model and one
+incident and do not generalize into a general evasion recipe]. Per the
+submission rules, we withhold [TODO: confirm whether anything in this project
+counts as a "novel installation recipe" requiring disclosure review --
+if unsure, ask on Discord before publishing the repo publicly].
+
+% ---------------------------------------------------------------------------
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+
+\bibitem{openai-report} OpenAI, ``The Hugging Face incident and the road
+ahead,'' 2026. \url{https://openai.com/index/hugging-face-incident-and-the-road-ahead/}
+
+\bibitem{hf-timeline} Hugging Face, ``Anatomy of a Frontier Lab Agent
+Intrusion: A Technical Timeline of the July 2026 Incident,'' 2026.
+\url{https://huggingface.co/blog/agent-intrusion-technical-timeline}
+
+\bibitem{willison-timeline} S. Willison, ``Now we have a timeline of the
+OpenAI accidental attack against Hugging Face,'' 2026.
+\url{https://simonwillison.net/2026/Aug/7/openai-timeline/}
+
+\bibitem{epistemic-fingerprints} S. Gallego, ``Epistemic Fingerprints:
+False Epistemic Redundancy,'' Apart Research Digital Minds Sprint, 2026.
+\url{https://sofiagallego.com/epistemic-fingerprints}
+
+\bibitem{guardagent} Z. Xu et al., ``GuardAgent: Safeguard LLM Agents by a
+Guard Agent via Knowledge-Enabled Reasoning,'' arXiv:2406.09187.
+
+\bibitem{debate-safety} ``Efficient LLM Safety Evaluation through
+Multi-Agent Debate,'' arXiv:2511.06396.
+
+\bibitem{mage} ``MAGE: Safeguarding LLM Agents against Long-Horizon Threats
+via Shadow Memory,'' arXiv:2605.03228.
+
+\bibitem{ensemble-monitoring} ``Ensemble Monitoring for AI Control: Diverse
+Signals Outweigh More Compute,'' arXiv:2605.15377.
+
+\bibitem{mi9} ``MI9: An Integrated Runtime Governance Framework for Agentic
+AI,'' arXiv:2508.03858.
+
+\bibitem{swiss-cheese} ``Designing Multi-layered Runtime Guardrails for
+Foundation Model Based Agents: Swiss Cheese Model for AI Safety by Design,''
+arXiv:2408.02205.
+
+\end{thebibliography}
+
+\end{document}
