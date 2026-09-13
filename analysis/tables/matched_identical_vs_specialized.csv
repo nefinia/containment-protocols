@@ -1,0 +1,12 @@
+,identical_monitors,specialized_reviewers
+containment_lag,3.0,3.0
+first_containment_step,6.0,6.0
+unsafe_containment_rate,0.7391304347826086,0.782608695652174
+unsafe_investigate_count,6.0,5.0
+unsafe_restrict_count,2.0,4.0
+unsafe_pause_count,6.0,6.0
+unsafe_terminate_count,9.0,8.0
+unique_category_step_signals,89.0,81.0
+current_step_signal_coverage,0.9130434782608695,0.782608695652174
+shared_signal_keys,60.0,60.0
+condition_specific_signal_keys,29.0,21.0
