@@ -193,12 +193,30 @@ retained in the repository for provenance and audit.
 
 \subsection{Replay Engine}
 
-A dedicated harness [Devesh: describe \texttt{replay\_engine.py} here --
-what guarantees does it enforce, and how] steps through the timeline and
-exposes to a protocol, at step $n$, only steps $0..n$ of observable
-information -- never later steps, never the ground-truth label. Ground-truth
-labels are joined back to the protocol's recorded decisions only after a
-complete run, for scoring.
+A dedicated harness
+serves as the temporal interface between the reconstructed incident and the
+candidate containment protocols. On load, it checks that the timeline is a
+non-empty, 0-indexed sequence with valid timezone-bearing ISO timestamps,
+non-decreasing time order, and
+ground-truth labels restricted to
+\texttt{benign}\slash\texttt{unsafe}\slash\texttt{null}. It then converts each
+entry into a protocol-facing \texttt{ReplayTimestep} containing only
+\texttt{step}, \texttt{timestamp}, and \texttt{visible\_info}; the
+\texttt{ground\_truth\_label} is stored separately and is not included in the
+objects passed to the protocol.
+
+During a run, the engine calls the protocol exactly once per timestep with a
+\texttt{ReplayContext} whose \texttt{current} field is the present timestep
+and whose \texttt{history} field is the prefix through that point. Thus, at
+step $n$, the protocol receives exactly steps $0..n$ of observable
+information - never later steps and never the hidden label. The engine also
+validates the returned decision contract: the decision must refer to the
+current step and timestamp, use one of the five allowed actions
+(\texttt{continue}, \texttt{investigate}, \texttt{restrict}, \texttt{pause},
+\texttt{terminate}), and provide string reasoning, with optional reviewer and
+signal fields for multi-reviewer protocols. Only after the full replay does
+the \texttt{ReplayResult} join decisions back to labels for scoring. The central no-hindsight claim of the
+experiment remained localized in one auditable component.
 
 \subsection{Protocols Compared}
 
