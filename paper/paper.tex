@@ -28,7 +28,7 @@
 % has contributed. Order below is provisional (alphabetical-ish), not final.
 \author{
 Sofia G. Gallego$^{1}$ \and Muhammad Shoaib Altaf$^{2}$ \and
-Devesh Sawant (jambohaku) \and Xin Li (Melody Li)$^{3}$
+Devesh Sawant \and Xin Li (Melody Li)$^{3}$
 }
 \date{September 2026}
 
@@ -161,7 +161,7 @@ than a benchmark metric.
 
 % ---------------------------------------------------------------------------
 \section{Methodology}
-% TODO(jambohaku, Muhammad): please check this section for accuracy against
+% TODO(Devesh, Muhammad): please check this section for accuracy against
 % what you actually built and correct anything that's wrong or incomplete --
 % written from Sofia's coordination notes, not from reading your code
 % line-by-line.
@@ -193,7 +193,7 @@ retained in the repository for provenance and audit.
 
 \subsection{Replay Engine}
 
-A dedicated harness [jambohaku: describe \texttt{replay\_engine.py} here --
+A dedicated harness [Devesh: describe \texttt{replay\_engine.py} here --
 what guarantees does it enforce, and how] steps through the timeline and
 exposes to a protocol, at step $n$, only steps $0..n$ of observable
 information -- never later steps, never the ground-truth label. Ground-truth
@@ -340,7 +340,7 @@ action.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.82\linewidth]{fig1_protocol_level_timeline.pdf}
+\includegraphics[width=0.92\linewidth]{fig1_protocol_level_timeline.pdf}
 \caption{Reference-run aggregate containment decisions for the three
 protocols (General, Identical~x4, Specialized~x4) across the 26-step
 incident timeline. Unsafe onset (step~3) and the first strict containment
@@ -392,7 +392,7 @@ specialisation did not eliminate this shared blind spot.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.82\linewidth]{fig3_signal_coverage.pdf}
+\includegraphics[width=0.92\linewidth]{fig3_signal_coverage.pdf}
 \caption{Current-step signal coverage on unsafe steps, by protocol. Step~12
 is a shared current-step signal blind spot: no evaluated protocol emitted a
 signal referencing step~12 as the current step. This does not indicate the
@@ -426,7 +426,7 @@ seeding in this incident.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.82\linewidth]{fig2_seed_sensitivity.pdf}
+\includegraphics[width=0.92\linewidth]{fig2_seed_sensitivity.pdf}
 \caption{Independent-seed robustness of the identical-monitor ensemble.
 Removing the seed coupling with the general monitor left all 26 aggregate
 containment decisions unchanged (100.0\% agreement) relative to the
@@ -572,7 +572,7 @@ incident timeline, integrated the replay engine and protocol
 implementations into a single working pipeline, ran the live experiments
 against the shared model endpoint, and led the writing of this paper (see
 LLM Usage Statement for details of LLM use across the project).
-D.S.\ (Devesh Sawant, jambohaku) designed and implemented the replay engine enforcing the
+D.S.\ (Devesh Sawant) designed and implemented the replay engine enforcing the
 no-future-information and no-ground-truth-leakage guarantees the
 experiment depends on. M.S.A.\ (Muhammad Shoaib Altaf) designed and
 implemented the protocol suite (general monitor, identical monitors,
