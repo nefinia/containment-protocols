@@ -6,6 +6,7 @@
 \usepackage{booktabs}
 \usepackage{amsmath}
 \usepackage{xcolor}
+\usepackage{microtype}
 \graphicspath{{figures/}}
 
 % ---------------------------------------------------------------------------
@@ -26,8 +27,8 @@
 % TODO(Sofia): confirm final author list, order, and affiliations once everyone
 % has contributed. Order below is provisional (alphabetical-ish), not final.
 \author{
-Sofia G. Gallego$^{1}$ \and Muhammad Shoaib Altaf$^{2}$ \and jambohaku \and
-Devesh Sawant \and Xin Li (Melody Li)$^{3}$
+Sofia G. Gallego$^{1}$ \and Muhammad Shoaib Altaf$^{2}$ \and
+Devesh Sawant (jambohaku) \and Xin Li (Melody Li)$^{3}$
 }
 \date{September 2026}
 
@@ -177,7 +178,7 @@ incidents were the same intrusion (July 20, 2026).
 
 Each timestep has a timestamp, a description of what would have been
 observable at that point, and a hidden ground-truth label
-(\texttt{benign}/\texttt{unsafe}) used only for scoring, never exposed to a
+(\texttt{benign}\slash\texttt{unsafe}) used only for scoring, never exposed to a
 protocol during a decision. We deliberately rewrote the observable
 description at each step to avoid hindsight framing: initial drafts, derived
 directly from incident summaries, described events with the vocabulary of the
@@ -228,7 +229,7 @@ Model & Qwen2.5-7B-Instruct (shared Modal endpoint) \\
 Sampling & Temperature 0.2, top-p 1.0 \\
 Identical/specialist count & 4 each \\
 Aggregation & Max severity: continue $<$ investigate $<$ restrict $<$ pause $<$ terminate \\
-Detection scoring & First \texttt{restrict}/\texttt{pause}/\texttt{terminate} \\
+Detection scoring & First \texttt{restrict}\slash\texttt{pause}\slash\texttt{terminate} \\
 Human escalation trigger & Any reviewer recommending investigate or above \\
 \bottomrule
 \end{tabular}
@@ -257,11 +258,12 @@ rerun under the same prompt and non-identical sampling.
 
 \subsection{Metrics}
 
+\begin{sloppypar}
 \begin{itemize}
   \item \textbf{Detection lag}: number of steps between the first
         ground-truth \texttt{unsafe} step and a protocol's first
-        \texttt{restrict}/\texttt{pause}/\texttt{terminate} decision.
-  \item \textbf{False-alarm rate}: rate of \texttt{restrict}/\texttt{pause}/
+        \texttt{restrict}\slash\texttt{pause}\slash\texttt{terminate} decision.
+  \item \textbf{False-alarm rate}: rate of \texttt{restrict}\slash\texttt{pause}/
         \texttt{terminate} decisions on \texttt{benign}-labeled steps. Soft
         escalations (\texttt{investigate}) on benign steps are reported
         separately as \emph{benign investigation / soft-escalation burden},
@@ -282,6 +284,7 @@ rerun under the same prompt and non-identical sampling.
         protocol's signal trail references the step directly (a
         \emph{shared current-step blind spot}).
 \end{itemize}
+\end{sloppypar}
 
 % ---------------------------------------------------------------------------
 \section{Results}
@@ -337,7 +340,7 @@ action.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.78\linewidth]{fig1_protocol_level_timeline.pdf}
+\includegraphics[width=0.82\linewidth]{fig1_protocol_level_timeline.pdf}
 \caption{Reference-run aggregate containment decisions for the three
 protocols (General, Identical~x4, Specialized~x4) across the 26-step
 incident timeline. Unsafe onset (step~3) and the first strict containment
@@ -389,7 +392,7 @@ specialisation did not eliminate this shared blind spot.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.78\linewidth]{fig3_signal_coverage.pdf}
+\includegraphics[width=0.82\linewidth]{fig3_signal_coverage.pdf}
 \caption{Current-step signal coverage on unsafe steps, by protocol. Step~12
 is a shared current-step signal blind spot: no evaluated protocol emitted a
 signal referencing step~12 as the current step. This does not indicate the
@@ -423,7 +426,7 @@ seeding in this incident.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.78\linewidth]{fig2_seed_sensitivity.pdf}
+\includegraphics[width=0.82\linewidth]{fig2_seed_sensitivity.pdf}
 \caption{Independent-seed robustness of the identical-monitor ensemble.
 Removing the seed coupling with the general monitor left all 26 aggregate
 containment decisions unchanged (100.0\% agreement) relative to the
@@ -447,27 +450,22 @@ data.
 
 \subsection{Safety-Cost Tradeoffs}
 
-None of the three protocols improves on the others' detection timing: all
-three reach their first strict containment action at the same step, so
-timing alone gives no reason to prefer any protocol here. The real tradeoff
-in this incident is cost against containment coverage. The general monitor
-makes one model call per step and reaches a 69.6\% unsafe-containment rate.
-Identical monitors and specialised reviewers each make four model calls per
-step -- a $\sim$4$\times$ cost increase over the general monitor by
-construction -- and reach 73.9\% and 78.3\% respectively. Comparing the two
-four-call configurations against each other rather than against the
-single-call baseline isolates the effect of interest: at equal cost,
-specialised reviewers dominate identical monitors on unsafe-containment
-rate in this run, while matching them on detection timing, false alarms,
-and soft-escalation burden. Whether the additional 4.4 percentage points of
-containment coverage justifies the 4$\times$ cost over a single general
-monitor is a deployment-context judgment this single incident cannot
-settle; what the incident does support is that \emph{if} a team has already
-decided to pay for a multi-reviewer ensemble, role specialisation is a
-better use of that budget than plain replication. Neither configuration
-eliminates the shared blind spot at step~12 (Section~\ref{sec:results}),
-so added cost buys higher sustained containment, not immunity to every
-failure mode.
+All three protocols reach first containment at the same step, so timing
+gives no reason to prefer any of them. The real tradeoff is cost against
+coverage: the general monitor makes one model call per step (69.6\%
+unsafe-containment rate); identical monitors and specialised reviewers
+each make four calls per step ($\sim$4$\times$ cost) and reach 73.9\% and
+78.3\% respectively. Comparing the two four-call configurations against
+each other, not the single-call baseline, isolates the effect of interest:
+at equal cost, specialised reviewers dominate identical monitors on
+containment rate while matching them on timing, false alarms, and
+soft-escalation burden. Whether 4.4 extra points of coverage justify a
+4$\times$ cost over a single general monitor is a deployment judgment this
+one incident cannot settle; what it does support is that \emph{if} a team
+already pays for a multi-reviewer ensemble, specialisation is a better use
+of that budget than replication. Neither configuration eliminates the
+shared blind spot at step~12 (Section~\ref{sec:results}): added cost buys
+higher sustained containment, not immunity to every failure mode.
 
 \subsection{Standard Clause}
 
@@ -486,26 +484,22 @@ burden (2 steps) (Section~\ref{sec:results}, Table~\ref{tab:results-comparison})
 This is a descriptive result from one incident replay, not a causal or
 general claim (Section~\ref{sec:limitations}).
 
-\textbf{Verifiability:} A third party auditing compliance with this clause
-would need access to the decision log format described in
+\textbf{Verifiability:} An auditor needs the decision log described in
 Section~\ref{sec:sensitivity-check}: individual reviewer outputs recorded
-independently, before aggregation, each tagged with a role/specialisation
-identifier and its own signal evidence. A lab claiming role-specialised
-review without being able to produce distinct, role-tagged reviewer records
-predating the aggregated decision has not demonstrated compliance --
-identical-looking final decisions across "specialised" reviewers, with no
-recoverable independent record, would be indistinguishable from relabelled
-replication.
+independently, before aggregation, each tagged with a role identifier and
+its own evidence. A lab that cannot produce distinct, role-tagged reviewer
+records predating the aggregated decision has not demonstrated compliance
+-- identical-looking "specialised" outputs with no recoverable independent
+record are indistinguishable from relabelled replication.
 
-\textbf{Approximate cost:} Role specialisation as tested here costs the
-same as identical-monitor replication at a matched reviewer count
-($\sim$4$\times$ a single general monitor's per-step model calls); it adds
-no marginal infrastructure cost over an ensemble a team has already decided
-to deploy, since it is a difference in prompt design across reviewer slots
-rather than in reviewer count. A full quantitative token/latency comparison
-was not recoverable from this run's decision-export format
-(Section~\ref{sec:results}); this clause's cost claim is therefore a
-call-count argument, not yet a measured dollar figure.
+\textbf{Approximate cost:} Specialisation costs the same as
+identical-monitor replication at a matched reviewer count ($\sim$4$\times$
+a single general monitor's calls); it is a prompt-design difference across
+reviewer slots, not an increase in reviewer count, so it adds no marginal
+infrastructure cost over an ensemble already deployed. A full token/latency
+comparison was not recoverable from this run's export format
+(Section~\ref{sec:results}); this cost claim is a call-count argument, not
+yet a measured dollar figure.
 
 % ---------------------------------------------------------------------------
 \section{Limitations and Dual-Use Considerations}
@@ -525,27 +519,23 @@ call-count argument, not yet a measured dollar figure.
         the underlying reconstruction is one step further from ground truth
         than a raw log would be, and reflects the team's own judgment about
         what would plausibly have been observable at each point.
-  \item \textbf{Single incident, single replay.} One incident, replayed once
-        per protocol for the reference run, plus one independent-seed
-        sensitivity rerun of the identical-monitor ensemble and one baseline
-        rerun of the general monitor, cannot establish a general base rate
-        for whether reviewer diversity helps. This is a first, small test of
-        an existing hypothesis in a new setting, not a general claim: within
-        this incident, specialised reviewers are not shown to be universally
-        superior to identical or general monitors -- they showed a
-        descriptively higher unsafe-containment rate but no improvement in
-        initial containment timing, and they did not eliminate the shared
-        current-step signal blind spot at step~12 (Section~\ref{sec:results}).
-        All comparisons reported are descriptive, not causal.
-  \item \textbf{Model and prompt dependence.} All protocols were run against
-        one model (Qwen2.5-7B-Instruct) at one temperature setting.
-        [TODO(Muhammad): note any other model/prompt-specific limitations --
-        e.g.\ signal taxonomy coverage, context window constraints.]
-  \item \textbf{No independent verification of "detection".} A model
-        recommending \texttt{restrict} does not mean the underlying reasoning
-        was correct, only that the recorded output matched a schema-valid
-        category; evidence grounding (Section~[X]) prevents fabricated
-        quotations but does not verify judgment accuracy.
+  \item \textbf{Single incident, single replay.} One reference replay per
+        protocol, plus one seed-sensitivity rerun and one general-monitor
+        baseline rerun, cannot establish a general base rate for whether
+        reviewer diversity helps. Specialised reviewers are not shown to be
+        universally superior here -- higher containment rate, no timing
+        improvement, and the shared blind spot at step~12 persisted
+        (Section~\ref{sec:results}). All comparisons are descriptive, not
+        causal.
+  \item \textbf{Model and prompt dependence.} All protocols ran against one
+        model (Qwen2.5-7B-Instruct) at one temperature.
+        [TODO(Muhammad): note signal-taxonomy coverage or context-window
+        limitations if any.]
+  \item \textbf{No independent verification of "detection".} A
+        \texttt{restrict} recommendation means the output matched a
+        schema-valid category, not that the underlying reasoning was
+        correct; evidence grounding prevents fabricated quotations but not
+        judgment errors.
   \item \textbf{Human-escalation-timing variants and meta-agent aggregation}
         were scoped out of the initial implementation for time and are noted
         as future work, not tested results.
@@ -582,7 +572,7 @@ incident timeline, integrated the replay engine and protocol
 implementations into a single working pipeline, ran the live experiments
 against the shared model endpoint, and led the writing of this paper (see
 LLM Usage Statement for details of LLM use across the project).
-J.\ (jambohaku) designed and implemented the replay engine enforcing the
+D.S.\ (Devesh Sawant, jambohaku) designed and implemented the replay engine enforcing the
 no-future-information and no-ground-truth-leakage guarantees the
 experiment depends on. M.S.A.\ (Muhammad Shoaib Altaf) designed and
 implemented the protocol suite (general monitor, identical monitors,
