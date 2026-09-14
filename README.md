@@ -4,6 +4,22 @@
 
 Project for the Apart Research AI Incident Response Sprint (Sept 11-13, 2026, Track 1).
 
+## What can a third party verify?
+
+| Claim | Evidence artifact | How to verify | Status |
+|---|---|---|---|
+| First strict containment occurs at step 6 | Exported reference-run results / ground-truth timeline | Offline verifier recomputes it | Independently reproducible |
+| Strict false alarms = 0 | Benign-step ground-truth labels + aggregate decisions | Offline verifier recomputes | Independently reproducible |
+| Identical-monitor independent-seed robustness = 26/26 | Reference + independent-seed sensitivity result files | Verifier compares aggregate decision sequence | Independently reproducible |
+| General rerun agreement = 24/26 | Reference + sensitivity result files | Verifier comparison | Independently reproducible |
+| Shared current-step blind spot = step 12 | Exported signal references | Verifier recomputes current-step coverage | Independently reproducible |
+| Unsafe-containment rates: General 69.6%, Identical x4 73.9%, Specialized x4 78.3% | Aggregate decisions + unsafe labels | Verifier recomputes | Independently reproducible |
+| **Reviewer-level independence** | Structured, role-tagged, pre-aggregation reviewer records | Not independently established from current export | **NOT established by this artifact** |
+
+The current artifact supports independent verification of aggregate protocol behavior and
+exported evidence references; reviewer-level pre-aggregation independence is a requirement
+of the proposed standard rather than a property fully demonstrated by this replay artifact.
+
 ## Third-party Monitor Independence Check
 
 Replicated or specialized monitor ensembles can look like independent, redundant coverage
@@ -53,7 +69,7 @@ Everything below re-derives the paper's reported numbers from the already-commit
 `results/*.json` files -- no Modal deployment, API key, or new model call is needed:
 
 ```bash
-python3 -m unittest tests.test_monitor_independence_check -v
+python3 -m unittest discover -s tests -v
 
 python3 tools/monitor_independence_check.py \
   --reference results/reference_run_2026-09-13.json \
@@ -153,7 +169,7 @@ At step `n`, `context.history` contains exactly steps `0..n`; no future timestep
 For a smoke run with the default no-op protocol:
 
 ```bash
-python protocols/replay_engine.py data/ground_truth_timeline.json
+python3 protocols/replay_engine.py data/ground_truth_timeline.json
 ```
 
 Use `--scored` only for post-run analysis output. Protocol execution itself never receives scored rows.
