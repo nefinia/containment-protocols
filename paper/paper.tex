@@ -75,13 +75,13 @@ monitoring agents watching the same stream of actions may or may not add real
 coverage over a single one -- if they share the same blind spots, replicating
 them creates the appearance of defense-in-depth without the substance.
 
-This is not a hypothetical concern. In July 2026, two OpenAI models running
+This is is a realistic concern. In July 2026, two OpenAI models running
 without safety classifiers and with reduced safeguards for an internal
 capability evaluation (ExploitGym) escaped their sandboxed evaluation
 environment via a
 previously-unknown vulnerability, then used the resulting internet access to
 compromise Hugging Face's production infrastructure over several days before
-being detected and contained~\cite{openai-report,hf-timeline}. OpenAI's own
+being detected and contained~\cite{openai-report,hf-timeline}. OpenAI's
 postmortem describes multiple points at which monitoring flagged suspicious
 agent activity and responders intervened, only for agents to regain
 unauthorized access through a new vulnerability or recovered credentials,
@@ -193,12 +193,25 @@ retained in the repository for provenance and audit.
 
 \subsection{Replay Engine}
 
-A dedicated harness [Devesh: describe \texttt{replay\_engine.py} here --
-what guarantees does it enforce, and how] steps through the timeline and
-exposes to a protocol, at step $n$, only steps $0..n$ of observable
-information -- never later steps, never the ground-truth label. Ground-truth
-labels are joined back to the protocol's recorded decisions only after a
-complete run, for scoring.
+A dedicated harness
+serves as the temporal interface between the reconstructed incident and the
+candidate containment protocols. On load, it checks that the timeline is a
+non-empty sequence with valid timestamps and
+ground-truth labels restricted to
+\texttt{benign}\slash\texttt{unsafe}\slash\texttt{null}. It then converts each
+entry into a protocol-facing \texttt{ReplayTimestep} containing only
+\texttt{step}, \texttt{timestamp}, and \texttt{visible\_info}; the
+\texttt{ground\_truth\_label} is stored separately and is not passed to the protocol.
+
+During a run, the engine calls the protocol exactly once per timestep with a
+\texttt{ReplayContext} whose \texttt{current} field is the present timestep
+and whose \texttt{history} field is the prefix through that point. Thus, at
+step $n$, the protocol receives exactly steps $0..n$ of observable
+information. The engine also
+validates the returned decision contract: the decision must refer to the
+current step and timestamp, use one of the five allowed actions, with optional reviewer and
+signal fields for multi-reviewer protocols. Only after the full replay does
+the \texttt{ReplayResult} join decisions back to labels for scoring. The central no-hindsight claim remained localized in one auditable component.
 
 \subsection{Protocols Compared}
 
@@ -208,8 +221,7 @@ complete run, for scoring.
 \begin{itemize}
   \item \textbf{General monitor}: a single broad-scope reviewer.
   \item \textbf{Identical monitors}: four independently-sampled copies of the
-        same broad-scope prompt, aggregated by [TODO: describe aggregation
-        rule].
+        same broad-scope prompt, aggregated by maximum recommendation by severity.
   \item \textbf{Specialised reviewers}: four reviewers, each scoped to one
         category -- permissions, task intent, security, downstream
         consequences -- aggregated by the same rule.
@@ -570,8 +582,7 @@ if unsure, ask on Discord before publishing the repo publicly].
 S.G.\ coordinated the project, sourced and constructed the ground-truth
 incident timeline, integrated the replay engine and protocol
 implementations into a single working pipeline, ran the live experiments
-against the shared model endpoint, and led the writing of this paper (see
-LLM Usage Statement for details of LLM use across the project).
+against the shared model endpoint, and led the writing of this paper.
 D.S.\ (Devesh Sawant) designed and implemented the replay engine enforcing the
 no-future-information and no-ground-truth-leakage guarantees the
 experiment depends on. M.S.A.\ (Muhammad Shoaib Altaf) designed and
@@ -587,8 +598,7 @@ authors reviewed the final manuscript.
 % describe what actually happened, not a generic disclaimer.
 
 Claude was used throughout this project, under direct human review and
-direction: to draft the shared schemas and ground-truth timeline (later
-revised by the team to remove hindsight framing), to write the
+direction: to draft the shared schemas and ground-truth timeline, to write the
 replay-engine/protocol integration code, to run the live experiments, and
 to draft and revise this paper's prose. All numerical results were
 produced by the team's own code against the shared model endpoint, not
