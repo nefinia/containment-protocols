@@ -1,5 +1,5 @@
 \documentclass[11pt]{article}
-\usepackage[margin=1in]{geometry}
+\usepackage[margin=0.9in]{geometry}
 \usepackage{times}
 \usepackage{hyperref}
 \usepackage{graphicx}
@@ -26,35 +26,35 @@
 % TODO(Sofia): confirm final author list, order, and affiliations once everyone
 % has contributed. Order below is provisional (alphabetical-ish), not final.
 \author{
-Sofia Gallego \and
-Muhammad Shoaib Altaf \and
-jambohaku \and
-Xin Li (Melody Li)\thanks{University of Southern California, Los Angeles, CA, USA}
+Sofia G. Gallego$^{1}$ \and Muhammad Shoaib Altaf$^{2}$ \and jambohaku \and
+Devesh Sawant \and Xin Li (Melody Li)$^{3}$
 }
 \date{September 2026}
 
 \begin{document}
 \maketitle
+\footnotetext[1]{Cosmoventures, Paris, France}
+\footnotetext[2]{FAST University}
+\footnotetext[3]{University of Southern California, Los Angeles, CA, USA}
 
 % ---------------------------------------------------------------------------
 \begin{abstract}
-% TODO(Sofia): 150 words max, hard limit per submission requirements.
-% Draft below is a starting point -- cut/rewrite once Results/Discussion are
-% actually written, since the abstract should reflect real findings, not
-% intentions.
 
 Frontier AI safety increasingly relies on layered containment: automated
-monitors, specialised reviewers, and human escalation working together. But
-whether combining multiple watchers genuinely improves detection, or merely
-duplicates the same judgment while appearing more robust, is untested against
-a real incident. We replay the July 2026 OpenAI/Hugging Face sandbox-escape
-incident step by step, revealing to each protocol only the information that
-would have been available at that point in time, and compare a general
-monitor, several identical monitors, and specialised reviewers on detection
-timing, false alarms, and decision severity. [TODO: one to two sentences
-stating the actual headline result once analysis is complete.] We translate
-the strongest finding into a deployable clause with supporting evidence and
-estimated cost.
+monitors, specialised reviewers, and human escalation working together.
+Whether combining multiple watchers genuinely improves detection, or merely
+duplicates the same judgment while appearing more robust, is untested
+against a real incident. We replay the July 2026 OpenAI/Hugging Face
+sandbox-escape incident step by step, revealing to each protocol only the
+information available at that point in time, and compare a general
+monitor, four identical monitors, and four role-specialised reviewers on
+detection timing, false alarms, and decision severity. All three detect
+the incident at the same step with zero false alarms; specialised
+reviewers sustain containment on more unsafe steps than identical monitors
+at matched cost, but every protocol shares one blind spot. We translate
+this into a deployable clause: prefer role-specialised reviewers over
+identical replication at matched cost, verifiable via independently
+recorded, role-tagged reviewer outputs.
 
 \end{abstract}
 
@@ -337,7 +337,7 @@ action.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.95\linewidth]{fig1_protocol_level_timeline.pdf}
+\includegraphics[width=0.78\linewidth]{fig1_protocol_level_timeline.pdf}
 \caption{Reference-run aggregate containment decisions for the three
 protocols (General, Identical~x4, Specialized~x4) across the 26-step
 incident timeline. Unsafe onset (step~3) and the first strict containment
@@ -389,7 +389,7 @@ specialisation did not eliminate this shared blind spot.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.95\linewidth]{fig3_signal_coverage.pdf}
+\includegraphics[width=0.78\linewidth]{fig3_signal_coverage.pdf}
 \caption{Current-step signal coverage on unsafe steps, by protocol. Step~12
 is a shared current-step signal blind spot: no evaluated protocol emitted a
 signal referencing step~12 as the current step. This does not indicate the
@@ -423,7 +423,7 @@ seeding in this incident.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.95\linewidth]{fig2_seed_sensitivity.pdf}
+\includegraphics[width=0.78\linewidth]{fig2_seed_sensitivity.pdf}
 \caption{Independent-seed robustness of the identical-monitor ensemble.
 Removing the seed coupling with the general monitor left all 26 aggregate
 containment decisions unchanged (100.0\% agreement) relative to the
@@ -431,14 +431,6 @@ reference run, while the underlying category-step signal evidence changed
 (74 shared, 15 reference-only, 14 independent-seed-only keys).}
 \label{fig:seed-sensitivity}
 \end{figure}
-
-A detailed, individual-reviewer-resolution version of
-Figure~\ref{fig:protocol-timeline} (all four identical reviewers and all
-four specialised reviewers plotted separately, rather than aggregated) is
-retained as supplementary material in the project repository at
-\texttt{analysis/figures/fig1\_decision\_timeline.pdf} for readers who want
-per-reviewer detail; we do not reproduce it in the main text in order to
-keep the main Results concise.
 
 \subsection{Cost}
 
@@ -452,31 +444,68 @@ data.
 
 % ---------------------------------------------------------------------------
 \section{Discussion}
-% TODO(Sofia): this is now your section (tiramisu stepped out) -- Pareto/tradeoff framing, and the
-% verifiability point you raised about the CSA Cloud Controls Matrix. Replace
-% the skeleton below with your actual framing once Results exists.
 
 \subsection{Safety-Cost Tradeoffs}
-[TODO(Sofia): Pareto framing -- across the tested protocols, what do you
-give up and gain at each point, rather than naming a single "best" protocol.]
+
+None of the three protocols improves on the others' detection timing: all
+three reach their first strict containment action at the same step, so
+timing alone gives no reason to prefer any protocol here. The real tradeoff
+in this incident is cost against containment coverage. The general monitor
+makes one model call per step and reaches a 69.6\% unsafe-containment rate.
+Identical monitors and specialised reviewers each make four model calls per
+step -- a $\sim$4$\times$ cost increase over the general monitor by
+construction -- and reach 73.9\% and 78.3\% respectively. Comparing the two
+four-call configurations against each other rather than against the
+single-call baseline isolates the effect of interest: at equal cost,
+specialised reviewers dominate identical monitors on unsafe-containment
+rate in this run, while matching them on detection timing, false alarms,
+and soft-escalation burden. Whether the additional 4.4 percentage points of
+containment coverage justifies the 4$\times$ cost over a single general
+monitor is a deployment-context judgment this single incident cannot
+settle; what the incident does support is that \emph{if} a team has already
+decided to pay for a multi-reviewer ensemble, role specialisation is a
+better use of that budget than plain replication. Neither configuration
+eliminates the shared blind spot at step~12 (Section~\ref{sec:results}),
+so added cost buys higher sustained containment, not immunity to every
+failure mode.
 
 \subsection{Standard Clause}
 
-% TODO(Sofia): fill in using the clause -> evidence -> cost format the
-% track requires. One strong clause, well-supported, beats several weak ones.
+\textbf{Clause:} When a team already deploys multiple AI reviewers over an
+agent trajectory for containment purposes, those reviewers should be
+role-specialised (e.g. permissions, task intent, security, downstream
+consequences) rather than identical copies of a single general-purpose
+monitor running at the same total reviewer count and cost.
 
-\textbf{Clause:} [TODO]
+\textbf{Evidence:} In our replay of the OpenAI/Hugging Face sandbox-escape
+incident, a specialised four-reviewer ensemble sustained strict containment
+action on 78.3\% of unsafe steps versus 73.9\% for an identical
+four-reviewer ensemble at the same call count, while matching it exactly on
+detection lag (3 steps), strict false alarms (0), and benign-investigation
+burden (2 steps) (Section~\ref{sec:results}, Table~\ref{tab:results-comparison}).
+This is a descriptive result from one incident replay, not a causal or
+general claim (Section~\ref{sec:limitations}).
 
-\textbf{Evidence:} [TODO -- cite the specific result from Section 4 that
-justifies this clause.]
+\textbf{Verifiability:} A third party auditing compliance with this clause
+would need access to the decision log format described in
+Section~\ref{sec:sensitivity-check}: individual reviewer outputs recorded
+independently, before aggregation, each tagged with a role/specialisation
+identifier and its own signal evidence. A lab claiming role-specialised
+review without being able to produce distinct, role-tagged reviewer records
+predating the aggregated decision has not demonstrated compliance --
+identical-looking final decisions across "specialised" reviewers, with no
+recoverable independent record, would be indistinguishable from relabelled
+replication.
 
-\textbf{Verifiability:} [TODO -- per the verifiability point raised earlier on the CSA Cloud
-Controls Matrix: what would a third party need to check to confirm a lab is
-actually complying with this clause? E.g. does the decision log show
-independent reviewer outputs recorded before aggregation.]
-
-\textbf{Approximate cost:} [TODO -- derive from the token/latency cost
-numbers in Results.]
+\textbf{Approximate cost:} Role specialisation as tested here costs the
+same as identical-monitor replication at a matched reviewer count
+($\sim$4$\times$ a single general monitor's per-step model calls); it adds
+no marginal infrastructure cost over an ensemble a team has already decided
+to deploy, since it is a difference in prompt design across reviewer slots
+rather than in reviewer count. A full quantitative token/latency comparison
+was not recoverable from this run's decision-export format
+(Section~\ref{sec:results}); this clause's cost claim is therefore a
+call-count argument, not yet a measured dollar figure.
 
 % ---------------------------------------------------------------------------
 \section{Limitations and Dual-Use Considerations}
