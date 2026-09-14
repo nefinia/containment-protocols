@@ -100,13 +100,15 @@ adding coverage?} We test this by progressively replaying the public,
 reconstructed timeline of the incident, revealing to each candidate
 containment protocol only the information that would have been observable up
 to that point -- never the outcome, never a hidden ground-truth label -- and
-comparing four protocol designs: a single general-purpose monitor, several
-identical copies of that monitor, a set of specialised reviewers each
+comparing three protocol designs: a single general-purpose monitor, several
+identical copies of that monitor, and a set of specialised reviewers each
 watching for a different failure mode (permissions, task intent, security,
-downstream consequences), and variants of when a human is brought into the
-loop. We compare protocols on detection timing, false-alarm rate,
-human-review burden, and computational cost, and translate the strongest
-result into a concrete, adoptable clause in the format this track requests:
+downstream consequences). Human-escalation-timing variants were scoped for
+this comparison but not run in the initial implementation
+(Section~\ref{sec:limitations}). We compare protocols on detection timing,
+false-alarm rate, human-review burden, and model-call count, and translate
+the strongest result into a concrete, adoptable clause in the format this
+track requests:
 clause~$\rightarrow$~evidence~$\rightarrow$~approximate cost.
 
 This project is a direct extension of prior work on \emph{false epistemic
