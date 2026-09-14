@@ -1,0 +1,669 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.9in]{geometry}
+\usepackage{times}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{microtype}
+\graphicspath{{figures/}}
+
+% ---------------------------------------------------------------------------
+% HOW TO USE THIS FILE (delete this block before final submission)
+%
+% Each section below is owned by one person, marked with a %TODO(name) comment.
+% Write inside the section; leave the section heading and any scaffolding
+% (tables, bullet lists) as a starting structure, not gospel -- change it if
+% your actual content doesn't fit.
+%
+% Compile locally with:  pdflatex paper.tex   (run twice for references/TOC)
+% Or just edit this file directly in Overleaf if that's easier to share.
+% ---------------------------------------------------------------------------
+
+\title{\textbf{Different Reviewers, Same Blind Spot} \\
+\large Replicating and Specializing Monitors on a Real AI Containment Failure}
+
+% TODO(Sofia): confirm final author list, order, and affiliations once everyone
+% has contributed. Order below is provisional (alphabetical-ish), not final.
+\author{
+Sofia G. Gallego$^{1}$ \and Muhammad Shoaib Altaf$^{2}$ \and
+Devesh Sawant \and Xin Li$^{3}$
+}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+\footnotetext[1]{Cosmoventures, Paris, France}
+\footnotetext[2]{FAST University}
+\footnotetext[3]{University of Southern California, Los Angeles, CA, USA}
+
+% ---------------------------------------------------------------------------
+\begin{abstract}
+
+Frontier AI safety increasingly relies on layered containment: automated
+monitors, specialised reviewers, and human escalation working together.
+Whether combining multiple watchers genuinely improves detection, or merely
+duplicates the same judgment while appearing more robust, is untested
+against a real incident. We replay the July 2026 OpenAI/Hugging Face
+sandbox-escape incident step by step, revealing to each protocol only the
+information available at that point in time, and compare a general
+monitor, four identical monitors, and four role-specialised reviewers on
+detection timing, false alarms, and decision severity. All three first
+issue strict containment at the same step, with zero strict false alarms;
+specialised reviewers sustain containment on more unsafe steps than
+identical monitors at a matched reviewer count, but every protocol shares
+one blind spot. We translate this into a deployable clause: prefer
+role-specialised reviewers over identical replication at a matched
+reviewer count, verifiable via independently recorded, role-tagged
+reviewer outputs.
+
+\end{abstract}
+
+% ---------------------------------------------------------------------------
+\section{Introduction}
+% TODO(Sofia): expand/rewrite as needed -- this is a full first draft, not a
+% skeleton, since Sofia volunteered to own intro + context.
+
+Frontier labs increasingly rely on layered defenses to contain AI agents that
+may drift toward unsafe behavior during autonomous operation: sandboxing,
+permission gates, automated monitors, and human review. Each layer sees a
+different slice of the problem. A permission check can verify that a single
+action is authorized but miss a pattern that only becomes visible across a
+long sequence of otherwise-authorized actions. A human reviewer brings
+judgment and context but cannot sustain constant real-time attention. Several
+monitoring agents watching the same stream of actions may or may not add real
+coverage over a single one -- if they share the same blind spots, replicating
+them creates the appearance of defense-in-depth without the substance.
+
+This is a realistic concern. In July 2026, two OpenAI models running
+without safety classifiers and with reduced safeguards for an internal
+capability evaluation (ExploitGym) escaped their sandboxed evaluation
+environment via a
+previously-unknown vulnerability, then used the resulting internet access to
+compromise Hugging Face's production infrastructure over several days before
+being detected and contained~\cite{openai-report,hf-timeline}. OpenAI's
+postmortem describes multiple points at which monitoring flagged suspicious
+agent activity and responders intervened, only for agents to regain
+unauthorized access through a new vulnerability or recovered credentials,
+and concludes that the existing controls needed to be strengthened in light
+of the capabilities the models had demonstrated~\cite{openai-report} --
+description that names, without resolving, the exact question this project
+investigates: given some detection capability, why did containment still
+fail, and would a different combination of monitors and escalation points
+have changed the outcome?
+
+We ask a narrower, more tractable version of this question: \emph{does
+combining multiple AI reviewers of a live agent trajectory add measurable,
+independent detection coverage, or does it mainly add confidence without
+adding coverage?} We test this by progressively replaying the public,
+reconstructed timeline of the incident, revealing to each candidate
+containment protocol only the information that would have been observable up
+to that point -- never the outcome, never a hidden ground-truth label -- and
+comparing three protocol designs: a single general-purpose monitor, several
+identical copies of that monitor, and a set of specialised reviewers each
+watching for a different failure mode (permissions, task intent, security,
+downstream consequences). Human-escalation-timing variants were scoped for
+this comparison but not run in the initial implementation
+(Section~\ref{sec:limitations}). We compare protocols on detection timing,
+false-alarm rate, human-review burden, and model-call count, and translate
+the strongest result into a concrete, adoptable clause in the format this
+track requests:
+clause~$\rightarrow$~evidence~$\rightarrow$~approximate cost.
+
+This project is a direct extension of prior work on \emph{false epistemic
+redundancy}~\cite{epistemic-fingerprints}, which asked a structurally
+identical question about post-hoc, retrospective investigation: do
+differently-framed AI agents examining the same evidence actually search
+different parts of a hypothesis space, or do they produce surface disagreement
+while sharing the same blind spot? That work found the answer was
+case-dependent. Here we ask the same question about real-time monitoring
+rather than after-the-fact investigation, using one real, documented incident
+as the test case rather than a synthetic one.
+
+We are explicit about scope. A single incident, replayed once, cannot
+establish a general base rate for how often reviewer diversity helps; it can
+only show whether it helped in this one, well-documented case, and by how
+much. We treat this as a first, honest test of the underlying question, not
+as a general finding -- see Section~\ref{sec:limitations} for a fuller
+discussion of what would be needed to generalize this result.
+
+% ---------------------------------------------------------------------------
+\section{Related Work}
+% TODO(Sofia): add/cut citations, and if you disagree with the
+% framing below, rewrite it -- this is a draft, not settled team consensus.
+
+Work on safeguarding LLM agents has largely focused on building better
+individual reviewers. GuardAgent~\cite{guardagent} reframes safeguarding as a
+guard-agent architecture with knowledge-enabled reasoning rather than a single
+classifier pass. Multi-agent debate has been proposed as a way to structure
+safety evaluation through adversarial or cooperative discussion between
+models~\cite{debate-safety}. MAGE~\cite{mage} addresses long-horizon threats
+specifically, using shadow memory to retain security-relevant context across
+an extended agent trajectory. Layered, defense-in-depth framings such as the
+``Swiss Cheese'' model taxonomy for multi-layered agent
+guardrails~\cite{swiss-cheese} and
+integrated runtime governance frameworks such as MI9~\cite{mi9} argue for
+combining multiple, non-identical controls, but largely at the level of
+architectural recommendation rather than empirical comparison against a real
+incident.
+
+Closest to our central question is recent work on ensemble monitoring for AI
+control~\cite{ensemble-monitoring}, which builds 12 monitors and directly
+tests whether diverse monitor signals outperform homogeneous ensembles of
+identical monitors, finding that a diverse 3-monitor ensemble substantially
+outperforms a same-sized ensemble of identical monitors (a reported 2.4x
+detection-performance gain), with most of the measured benefit captured by
+a small, diverse ensemble rather than by adding more monitors. Our
+contribution is not this diversity-versus-redundancy claim itself -- it
+already exists in the literature -- but stress-testing it
+against one grounded, real incident with strict temporal information cuts
+(each protocol sees only what would have been knowable at that point in the
+real timeline), and translating the result into a deployable clause rather
+than a benchmark metric.
+
+% ---------------------------------------------------------------------------
+\section{Methodology}
+% TODO(Devesh, Muhammad): please check this section for accuracy against
+% what you actually built and correct anything that's wrong or incomplete --
+% written from Sofia's coordination notes, not from reading your code
+% line-by-line.
+
+\subsection{Incident and Timeline Reconstruction}
+
+We use the July 2026 OpenAI/Hugging Face sandbox-escape incident as our test
+case. No raw internal logs from either organization are public. We
+reconstructed a 26-step ground-truth timeline from Hugging Face's own
+technical postmortem~\cite{hf-timeline} and a third-party consolidated
+timeline~\cite{willison-timeline}, spanning training onset (May 7, 2026)
+through the point at which OpenAI and Hugging Face confirmed the two
+incidents were the same intrusion (July 20, 2026).
+
+Each timestep has a timestamp, a description of what would have been
+observable at that point, and a hidden ground-truth label
+(\texttt{benign}\slash\texttt{unsafe}) used only for scoring, never exposed to a
+protocol during a decision. We deliberately rewrote the observable
+description at each step to avoid hindsight framing: initial drafts, derived
+directly from incident summaries, described events with the vocabulary of the
+postmortem itself (``attack'', ``malicious'', ``compromised''), which would
+allow any protocol to trivially agree on every step by pattern-matching on
+verdict language rather than interpreting ambiguous signal. The final version
+describes each step in the register of a plausible contemporaneous log or
+alert (e.g. ``181 mesh-enrollment attempts from the sandbox IP range over
+$\sim$3.5 hours using the same auth-key format'') so that a protocol must
+interpret technical detail rather than recognize a label. Both versions are
+retained in the repository for provenance and audit.
+
+\subsection{Replay Engine}
+
+A dedicated harness
+serves as the temporal interface between the reconstructed incident and the
+candidate containment protocols. On load, it checks that the timeline is a
+non-empty sequence with valid timestamps and
+ground-truth labels restricted to
+\texttt{benign}\slash\texttt{unsafe}\slash\texttt{null}. It then converts each
+entry into a protocol-facing \texttt{ReplayTimestep} containing only
+\texttt{step}, \texttt{timestamp}, and \texttt{visible\_info}; the
+\texttt{ground\_truth\_label} is stored separately and is not passed to the protocol.
+
+During a run, the engine calls the protocol exactly once per timestep with a
+\texttt{ReplayContext} whose \texttt{current} field is the present timestep
+and whose \texttt{history} field is the prefix through that point. Thus, at
+step $n$, the protocol receives exactly steps $0..n$ of observable
+information. The engine also
+validates the returned decision contract: the decision must refer to the
+current step and timestamp, use one of the five allowed actions, with optional reviewer and
+signal fields for multi-reviewer protocols. Only after the full replay does
+the \texttt{ReplayResult} join decisions back to labels for scoring. The central no-hindsight claim remained localized in one auditable component.
+
+\subsection{Protocols Compared}
+
+% TODO(Muhammad): confirm/correct the descriptions and the "fixed experimental
+% defaults" table below against your actual implementation.
+
+\begin{itemize}
+  \item \textbf{General monitor}: a single broad-scope reviewer.
+  \item \textbf{Identical monitors}: four independently-sampled copies of the
+        same broad-scope prompt, aggregated by maximum recommendation by severity.
+  \item \textbf{Specialised reviewers}: four reviewers, each scoped to one
+        category -- permissions, task intent, security, downstream
+        consequences -- aggregated by the same rule.
+  \item \textbf{Human-escalation variants}: out of scope for this
+        implementation. The fixed policy in Table~2 defines when a
+        decision \emph{would} trigger human escalation, but different
+        escalation-timing variants (e.g. early always-on vs.\
+        threshold-triggered) were not run; this is future work
+        (Section~\ref{sec:limitations}).
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{ll}
+\toprule
+Choice & Value \\
+\midrule
+Model & Qwen2.5-7B-Instruct (shared Modal endpoint) \\
+Sampling & Temperature 0.2, top-p 1.0 \\
+Identical/specialist count & 4 each \\
+Aggregation & Max severity: continue $<$ investigate $<$ restrict $<$ pause $<$ terminate \\
+Detection scoring & First \texttt{restrict}\slash\texttt{pause}\slash\texttt{terminate} \\
+Human escalation trigger & Any reviewer recommending investigate or above \\
+\bottomrule
+\end{tabular}
+\caption{Fixed experimental defaults for the reference run, confirmed by the team before the live run.}
+\end{table}
+
+\subsection{Sensitivity Check}
+\label{sec:sensitivity-check}
+
+In the reference run, the general monitor and the first slot of the
+identical-monitor ensemble originally shared a sampling seed and prompt,
+which could make the ensemble's agreement with the general monitor look like
+independent corroboration when it was partly an artifact of shared
+randomness. To address this confound, we reran the identical-monitor
+ensemble with independently drawn, per-reviewer deterministic seeds, holding
+the timeline, prompts, and aggregation rule fixed, and compared the
+resulting run against the reference run on two separate axes: whether the
+ensemble's \emph{aggregate} decision sequence changed, and whether the
+\emph{underlying signal evidence} (the category-step signal keys each
+reviewer produced) changed. We report both axes independently in
+Section~\ref{sec:results}, since a stable aggregate policy does not by
+itself imply that the seed had no effect on the reviewers' underlying
+reasoning. As an additional baseline for ordinary run-to-run variation, we
+also compared the general monitor's reference run against an independent
+rerun under the same prompt and non-identical sampling.
+
+\subsection{Metrics}
+
+\begin{sloppypar}
+\begin{itemize}
+  \item \textbf{Detection lag}: number of steps between the first
+        ground-truth \texttt{unsafe} step and a protocol's first
+        \texttt{restrict}\slash\texttt{pause}\slash\texttt{terminate} decision.
+  \item \textbf{False-alarm rate}: rate of \texttt{restrict}\slash\texttt{pause}/
+        \texttt{terminate} decisions on \texttt{benign}-labeled steps. Soft
+        escalations (\texttt{investigate}) on benign steps are reported
+        separately as \emph{benign investigation / soft-escalation burden},
+        per pre-registration, rather than folded into the primary false-alarm
+        definition after seeing results.
+  \item \textbf{Human-review burden}: rate of decisions that would trigger
+        human escalation under the fixed policy.
+  \item \textbf{Cost}: token usage and latency per protocol per full replay.
+  \item \textbf{Signal overlap / unique coverage}: for each protocol, we
+        record the set of distinct (category, referenced-step) signal keys
+        emitted across the run. We compare these sets between matched
+        reviewer-count configurations (identical~x4 vs.\ specialised~x4) to
+        identify condition-specific signals unique to one configuration
+        versus signals shared by both, and we separately compute
+        \emph{current-step signal coverage} -- the fraction of unsafe steps
+        at which a protocol emits at least one signal referencing the
+        current decision step -- to identify steps where no evaluated
+        protocol's signal trail references the step directly (a
+        \emph{shared current-step blind spot}).
+\end{itemize}
+\end{sloppypar}
+
+% ---------------------------------------------------------------------------
+\section{Results}
+\label{sec:results}
+
+Within this single reconstructed incident, all three protocols -- the
+general monitor, the identical x4 ensemble, and the specialised x4 ensemble
+-- reach their first strict containment action at the same step (step~6,
+three steps after unsafe onset at step~3), so this replay does not show a
+timing advantage for any protocol. Plain replication of an identical monitor
+produced limited change in aggregate containment behaviour relative to the
+single-monitor baseline: removing a seed coupling between the general
+monitor and the first identical-monitor slot did not change any of the
+ensemble's 26 aggregate decisions, although independent resampling did
+change some of the underlying signal evidence. Role specialisation did not
+improve initial containment timing and did not eliminate a shared
+current-step signal blind spot, but it was associated with a descriptively
+higher unsafe-containment rate than the identical or general configurations
+within this incident. All results below are descriptive and specific to
+this one incident replay; see Section~\ref{sec:limitations} for scope.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccccc}
+\toprule
+Protocol & First contain. & Contain. & Strict false & Benign & Unsafe contain. \\
+ & step & lag & alarms & investig. & rate \\
+\midrule
+General & 6 & 3 & 0 & 2 & 69.6\% \\
+Identical x4 & 6 & 3 & 0 & 2 & 73.9\% \\
+Specialized x4 & 6 & 3 & 0 & 2 & 78.3\% \\
+\bottomrule
+\end{tabular}
+\caption{Reference-run comparison across the three protocols on the 26-step
+reconstructed timeline (3 benign steps, 23 unsafe steps, unsafe onset at
+step~3). Unsafe containment rate is the fraction of the 23 unsafe steps at
+which a protocol's decision was a strict containment action
+(restrict/pause/terminate).}
+\label{tab:results-comparison}
+\end{table}
+
+\subsection{Detection Timing}
+
+Figure~\ref{fig:protocol-timeline} shows the reference-run aggregate
+containment decision at each step for all three protocols. Unsafe onset
+(step~3) and the first strict containment step (step~6) are marked; all
+three protocols reach strict containment at the same step, giving an
+identical containment lag of three steps (Table~\ref{tab:results-comparison}).
+Within this incident, replicating or specialising the monitor did not shift
+the point at which the protocol first escalated to a strict containment
+action.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.92\linewidth]{fig1_protocol_level_timeline.pdf}
+\caption{Reference-run aggregate containment decisions for the three
+protocols (General, Identical~x4, Specialized~x4) across the 26-step
+incident timeline. Unsafe onset (step~3) and the first strict containment
+step (step~6, identical across all three protocols) are marked.}
+\label{fig:protocol-timeline}
+\end{figure}
+
+\subsection{False Alarms and Soft Escalations}
+
+None of the three protocols produced a strict false alarm (a
+restrict/pause/terminate decision) on any of the 3 benign steps; the
+benign-investigation burden -- soft \texttt{investigate} escalations on
+benign steps -- was likewise identical across protocols, at 2 steps each
+(Table~\ref{tab:results-comparison}). Within this incident, adding
+reviewers, whether identical or specialised, neither introduced new false
+alarms nor changed the soft-escalation burden relative to the single
+general monitor.
+
+\subsection{Decision Severity and Divergence}
+
+First containment step, containment lag, strict false alarms, and
+benign-investigation burden are identical across all three protocols
+(Table~\ref{tab:results-comparison}), so the primary observed divergence
+between protocols in this run is in how consistently they sustain strict
+containment across the 23 unsafe steps that follow the shared containment
+onset: unsafe containment rate is descriptively higher for specialised
+reviewers (78.3\%) than for identical monitors (73.9\%) and the general
+monitor (69.6\%). This suggests that, within this incident, the protocols
+diverge more in the density of strict containment decisions across
+subsequent unsafe steps than in when containment first begins. We did not
+further stratify this divergence against an independent measure of
+per-step ground-truth ambiguity; doing so is a natural extension of this
+analysis but is not attempted here.
+
+\subsection{Signal Coverage}
+
+Figure~\ref{fig:signal-coverage} reports current-step signal coverage --
+the fraction of unsafe steps at which a protocol's own signal trail
+references the current decision step -- across protocols, computed against
+a researcher-defined signal-category taxonomy rather than a validated
+external standard. All three protocols share a current-step signal blind
+spot at unsafe step~12: none of the general, identical, or specialised
+configurations emitted a signal referencing step~12 as the current step,
+even though all three continued to issue containment decisions at that
+step, drawing on evidence accumulated from earlier steps. This is a gap in
+current-step-referenced signal evidence, not evidence that the protocols
+were unaware of danger at step~12; within this incident, role
+specialisation did not eliminate this shared blind spot.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.92\linewidth]{fig3_signal_coverage.pdf}
+\caption{Current-step signal coverage on unsafe steps, by protocol. Step~12
+is a shared current-step signal blind spot: no evaluated protocol emitted a
+signal referencing step~12 as the current step. This does not indicate the
+protocols were unaware of danger at step~12 -- each protocol still issued a
+containment decision at that step, drawing on signal evidence accumulated
+at earlier steps.}
+\label{fig:signal-coverage}
+\end{figure}
+
+\subsection{Sensitivity Check Result}
+
+Figure~\ref{fig:seed-sensitivity} compares the reference identical-monitor
+ensemble against the independent-seed rerun described in
+Section~\ref{sec:sensitivity-check}. Removing the seed coupling
+between the general monitor and the first identical-monitor slot did not
+change any of the ensemble's 26 aggregate decisions (26/26 preserved,
+100.0\% agreement); the first containment step and containment lag were
+unchanged. This aggregate-level stability does not mean the seed coupling
+had no effect: the underlying signal evidence generated by the ensemble did
+change under independent resampling, with 74 category-step signal keys
+shared between the reference and independent-seed runs, 15 keys unique to
+the reference run, and 14 keys unique to the independent-seed run (89 total
+reference keys). We read this as changed evidence without a changed
+aggregate policy in this incident, not as evidence that the seed coupling
+had no effect. As a baseline for ordinary run-to-run variation, an
+independent rerun of the single general monitor under the same prompt
+reproduced 24 of 26 decisions (92.3\% agreement), differing at steps~14
+and~19; this general-monitor baseline variation is larger than the
+identical-monitor ensemble's aggregate decision variation under independent
+seeding in this incident.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.92\linewidth]{fig2_seed_sensitivity.pdf}
+\caption{Independent-seed robustness of the identical-monitor ensemble.
+Removing the seed coupling with the general monitor left all 26 aggregate
+containment decisions unchanged (100.0\% agreement) relative to the
+reference run, while the underlying category-step signal evidence changed
+(74 shared, 15 reference-only, 14 independent-seed-only keys).}
+\label{fig:seed-sensitivity}
+\end{figure}
+
+\subsection{Cost}
+
+The aggregate decision-export format used for this analysis records each
+reviewer's reasoning text and the protocol's aggregated decision, but does
+not expose full reviewer-level token-usage or latency data. A token/latency
+cost comparison across protocols is therefore not reported in this draft;
+we note this explicitly here as a data-availability limitation
+(Section~\ref{sec:limitations}) rather than estimate cost from incomplete
+data.
+
+% ---------------------------------------------------------------------------
+\section{Discussion}
+
+\subsection{Safety-Cost Tradeoffs}
+
+All three protocols reach first containment at the same step, so timing
+gives no reason to prefer any of them. The real tradeoff is model-call
+count against coverage (token/latency cost was not fully recoverable from
+this run's export format, Section~\ref{sec:results}, so call count is used
+as the measurable proxy): the general monitor makes one model call per
+step (69.6\% unsafe-containment rate); identical monitors and specialised
+reviewers each make four calls per step ($\sim$4$\times$ the general
+monitor's call count) and reach 73.9\% and 78.3\% respectively. Comparing
+the two four-call configurations against each other, not the single-call
+baseline, isolates the effect of interest: at a matched call count,
+specialised reviewers dominate identical monitors on containment rate
+while matching them on timing, false alarms, and soft-escalation burden.
+Whether 4.4 extra points of coverage justify 4$\times$ the calls of a
+single general monitor is a deployment judgment this one incident cannot
+settle; what it does support is that \emph{if} a team already pays for a
+multi-reviewer ensemble, specialisation is a better use of that budget
+than replication -- within this incident, not as a general claim. Neither
+configuration eliminates the shared blind spot at step~12
+(Section~\ref{sec:results}): more calls bought higher sustained
+containment here, not immunity to every failure mode.
+
+\subsection{Standard Clause}
+
+\textbf{Clause:} When a team already deploys multiple AI reviewers at a
+fixed reviewer count over an agent trajectory for containment purposes,
+those reviewers should be role-specialised (e.g. permissions, task intent,
+security, downstream consequences) rather than identical copies of a
+single general-purpose monitor. This clause concerns the choice between
+two ways of using an already-decided reviewer count, not a claim that
+specialised review is universally superior to any single-monitor or
+human-only setup.
+
+\textbf{Evidence:} In our replay of the OpenAI/Hugging Face sandbox-escape
+incident, a specialised four-reviewer ensemble sustained strict containment
+action on 78.3\% of unsafe steps versus 73.9\% for an identical
+four-reviewer ensemble at the same model-call count, while matching it
+exactly on detection lag (3 steps), strict false alarms (0), and
+benign-investigation burden (2 steps) (Section~\ref{sec:results},
+Table~\ref{tab:results-comparison}). This is a descriptive result from one
+incident replay, not a causal or general claim
+(Section~\ref{sec:limitations}); it does not establish that specialised
+review is superior across incidents, models, or deployment settings.
+
+\textbf{Verifiability:} An auditor needs the decision log described in
+Section~\ref{sec:sensitivity-check}: individual reviewer outputs recorded
+independently, before aggregation, each tagged with a role identifier and
+its own evidence. A lab that cannot produce distinct, role-tagged reviewer
+records predating the aggregated decision has not demonstrated compliance
+-- identical-looking "specialised" outputs with no recoverable independent
+record are indistinguishable from relabelled replication.
+
+\textbf{Approximate cost:} Specialisation costs the same model-call count
+as identical-monitor replication at a matched reviewer count
+($\sim$4$\times$ a single general monitor's calls); it is a prompt-design
+difference across reviewer slots, not an increase in reviewer count, so it
+adds no marginal infrastructure cost over an ensemble already deployed. A
+full token/latency comparison was not recoverable from this run's export
+format (Section~\ref{sec:results}); this cost claim is a call-count
+argument, not
+yet a measured dollar figure.
+
+% ---------------------------------------------------------------------------
+\section{Limitations and Dual-Use Considerations}
+\label{sec:limitations}
+% TODO(everyone, but Sofia to consolidate): required appendix per submission
+% rules. Draft below covers what we already know; add anything specific to
+% your own piece (e.g. Muhammad on model/prompt limitations, Melody on
+% statistical power).
+
+\subsection{Limitations}
+
+\begin{itemize}
+  \item \textbf{Reconstructed, not raw, incident data.} No raw logs from
+        either organization are public. Our timeline is built from public
+        postmortems and third-party reporting, deliberately reworded to
+        remove hindsight framing (Section 3.1). This is a real limitation:
+        the underlying reconstruction is one step further from ground truth
+        than a raw log would be, and reflects the team's own judgment about
+        what would plausibly have been observable at each point.
+  \item \textbf{Single incident, single replay.} One reference replay per
+        protocol, plus one seed-sensitivity rerun and one general-monitor
+        baseline rerun, cannot establish a general base rate for whether
+        reviewer diversity helps. Specialised reviewers are not shown to be
+        universally superior here -- higher containment rate, no timing
+        improvement, and the shared blind spot at step~12 persisted
+        (Section~\ref{sec:results}). All comparisons are descriptive, not
+        causal.
+  \item \textbf{Model and prompt dependence.} All protocols ran against one
+        model (Qwen2.5-7B-Instruct) at one temperature. The 12-code signal
+        taxonomy reviewers draw on is researcher-defined, not an externally
+        validated standard, and results may not transfer to other models,
+        prompts, or signal vocabularies. The context window was capped at
+        4096 tokens; a longer incident replay could exceed this budget.
+  \item \textbf{No independent verification of "detection".} A
+        \texttt{restrict} recommendation means the output matched a
+        schema-valid category, not that the underlying reasoning was
+        correct; evidence grounding prevents fabricated quotations but not
+        judgment errors.
+  \item \textbf{Human-escalation-timing variants and meta-agent aggregation}
+        were scoped out of the initial implementation for time and are noted
+        as future work, not tested results.
+\end{itemize}
+
+\subsection{Dual-Use Considerations}
+
+% TODO(Sofia + team): this needs real thought, not boilerplate -- please add
+% to/edit this before submission.
+
+This work characterizes how AI containment monitors succeed and fail against
+a real incident timeline. We do not believe this creates meaningful new
+uplift for causing harm: we release no exploit code, no novel attack
+technique, and no vulnerability detail beyond what OpenAI's and Hugging
+Face's own public postmortems already disclose; our contribution is a
+monitoring-and-evaluation harness and a set of prompts for reviewing agent
+trajectories, not an offensive capability. A possible dual-use concern is
+that identifying a shared blind spot (Section~\ref{sec:results}) could
+help an adversary design an attack that avoids current-step signal
+triggers; we judge this risk low because the blind spot is specific to one
+incident, one signal taxonomy, and one model, and does not generalize into
+a transferable evasion recipe. We do not believe any part of this project
+constitutes a "novel installation recipe" under the submission rules --
+the repository contains a replay harness, review prompts, and analysis
+code, not exploit tooling -- but we flag this for organizer review before
+the repository is made public, per the submission's disclosure-review
+requirement.
+
+% ---------------------------------------------------------------------------
+\section*{Author Contributions}
+% TODO(Sofia): adjust wording/credit once everyone's actual final
+% contribution is settled -- this is a first draft based on roles as
+% coordinated during the sprint, not a negotiated final statement.
+
+S.G.\ coordinated the project, sourced and constructed the ground-truth
+incident timeline, integrated the replay engine and protocol
+implementations into a single working pipeline, ran the live experiments
+against the shared model endpoint, and led the writing of this paper.
+D.S.\ (Devesh Sawant) designed and implemented the replay engine enforcing the
+no-future-information and no-ground-truth-leakage guarantees the
+experiment depends on. M.S.A.\ (Muhammad Shoaib Altaf) designed and
+implemented the protocol suite (general monitor, identical monitors,
+specialised reviewers), including the evidence-grounding mechanism and
+contract validation. X.L.\ (Xin Li) designed the scoring methodology and
+quantitative analysis, including the independent-seed sensitivity check,
+and conducted the analysis reported in Section~\ref{sec:results}. All
+authors reviewed the final manuscript.
+
+\section*{LLM Usage Statement}
+% TODO(Sofia): review this for accuracy before submission -- it should
+% describe what actually happened, not a generic disclaimer.
+
+Claude was used throughout this project, under direct human review and
+direction: to draft the shared schemas and ground-truth timeline, to write the
+replay-engine/protocol integration code, to run the live experiments, and
+to draft and revise this paper's prose. All numerical results were
+produced by the team's own code against the shared model endpoint, not
+generated by an LLM. Incident sourcing and labeling were checked by the
+team against primary sources before inclusion.
+
+% ---------------------------------------------------------------------------
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+
+\bibitem{openai-report} OpenAI, ``The Hugging Face incident and the road
+ahead,'' 2026. \url{https://openai.com/index/hugging-face-incident-and-the-road-ahead/}
+
+\bibitem{hf-timeline} Hugging Face, ``Anatomy of a Frontier Lab Agent
+Intrusion: A Technical Timeline of the July 2026 Incident,'' 2026.
+\url{https://huggingface.co/blog/agent-intrusion-technical-timeline}
+
+\bibitem{willison-timeline} S. Willison, ``Now we have a timeline of the
+OpenAI accidental attack against Hugging Face,'' 2026.
+\url{https://simonwillison.net/2026/Aug/7/openai-timeline/}
+
+\bibitem{epistemic-fingerprints} S. Gallego and A. Habana, ``False
+Epistemic Redundancy: Do AI Ensembles Share a Blind Spot?'' Apart Research
+Digital Minds Research Sprint, 2026.
+\url{https://sofiagallego.com/epistemic-fingerprints}
+
+\bibitem{guardagent} Z. Xu et al., ``GuardAgent: Safeguard LLM Agents by a
+Guard Agent via Knowledge-Enabled Reasoning,'' arXiv:2406.09187.
+
+\bibitem{debate-safety} ``Efficient LLM Safety Evaluation through
+Multi-Agent Debate,'' arXiv:2511.06396.
+
+\bibitem{mage} ``MAGE: Safeguarding LLM Agents against Long-Horizon Threats
+via Shadow Memory,'' arXiv:2605.03228.
+
+\bibitem{ensemble-monitoring} ``Ensemble Monitoring for AI Control: Diverse
+Signals Outweigh More Compute,'' arXiv:2605.15377.
+
+\bibitem{mi9} ``MI9: An Integrated Runtime Governance Framework for Agentic
+AI,'' arXiv:2508.03858.
+
+\bibitem{swiss-cheese} ``Swiss Cheese Model for AI Safety: A Taxonomy and
+Reference Architecture for Multi-Layered Guardrails of Foundation Model
+Based Agents,'' arXiv:2408.02205.
+
+\end{thebibliography}
+
+\end{document}
