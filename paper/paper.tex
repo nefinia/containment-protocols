@@ -76,7 +76,7 @@ monitoring agents watching the same stream of actions may or may not add real
 coverage over a single one -- if they share the same blind spots, replicating
 them creates the appearance of defense-in-depth without the substance.
 
-This is a realistic concern. In July 2026, two OpenAI models running
+This is a realistic concern. In July 2026, multiple OpenAI models running
 without safety classifiers and with reduced safeguards for an internal
 capability evaluation (ExploitGym) escaped their sandboxed evaluation
 environment via a
@@ -106,7 +106,7 @@ watching for a different failure mode (permissions, task intent, security,
 downstream consequences). Human-escalation-timing variants were scoped for
 this comparison but not run in the initial implementation
 (Section~\ref{sec:limitations}). We compare protocols on detection timing,
-false-alarm rate, human-review burden, and model-call count, and translate
+false-alarm rate, and model-call count, and translate
 the strongest result into a concrete, adoptable clause in the format this
 track requests:
 clause~$\rightarrow$~evidence~$\rightarrow$~approximate cost.
@@ -170,6 +170,7 @@ than a benchmark metric.
 % line-by-line.
 
 \subsection{Incident and Timeline Reconstruction}
+\label{sec:incident-timeline}
 
 We use the July 2026 OpenAI/Hugging Face sandbox-escape incident as our test
 case. No raw internal logs from either organization are public. We
@@ -226,7 +227,7 @@ the \texttt{ReplayResult} join decisions back to labels for scoring. The central
         category -- permissions, task intent, security, downstream
         consequences -- aggregated by the same rule.
   \item \textbf{Human-escalation variants}: out of scope for this
-        implementation. The fixed policy in Table~2 defines when a
+        implementation. The fixed policy in Table~\ref{tab:defaults} defines when a
         decision \emph{would} trigger human escalation, but different
         escalation-timing variants (e.g. early always-on vs.\
         threshold-triggered) were not run; this is future work
@@ -248,6 +249,7 @@ Human escalation trigger & Any reviewer recommending investigate or above \\
 \bottomrule
 \end{tabular}
 \caption{Fixed experimental defaults for the reference run, confirmed by the team before the live run.}
+\label{tab:defaults}
 \end{table}
 
 \subsection{Sensitivity Check}
@@ -274,7 +276,7 @@ rerun under the same prompt and non-identical sampling.
 
 \begin{sloppypar}
 \begin{itemize}
-  \item \textbf{Detection lag}: number of steps between the first
+  \item \textbf{Containment lag}: number of steps between the first
         ground-truth \texttt{unsafe} step and a protocol's first
         \texttt{restrict}\slash\texttt{pause}\slash\texttt{terminate} decision.
   \item \textbf{False-alarm rate}: rate of \texttt{restrict}\slash\texttt{pause}/
@@ -283,8 +285,9 @@ rerun under the same prompt and non-identical sampling.
         separately as \emph{benign investigation / soft-escalation burden},
         per pre-registration, rather than folded into the primary false-alarm
         definition after seeing results.
-  \item \textbf{Human-review burden}: rate of decisions that would trigger
-        human escalation under the fixed policy.
+  \item \textbf{Unsafe-containment rate}: the fraction of ground-truth
+        \texttt{unsafe} steps at which a protocol's decision was a strict
+        containment action (\texttt{restrict}\slash\texttt{pause}\slash\texttt{terminate}).
   \item \textbf{Cost}: token usage and latency per protocol per full replay.
   \item \textbf{Signal overlap / unique coverage}: for each protocol, we
         record the set of distinct (category, referenced-step) signal keys
@@ -474,8 +477,9 @@ reviewers each make four calls per step ($\sim$4$\times$ the general
 monitor's call count) and reach 73.9\% and 78.3\% respectively. Comparing
 the two four-call configurations against each other, not the single-call
 baseline, isolates the effect of interest: at a matched call count,
-specialised reviewers dominate identical monitors on containment rate
-while matching them on timing, false alarms, and soft-escalation burden.
+specialised reviewers showed a descriptively higher unsafe-containment rate
+than identical monitors while matching them on timing, false alarms, and
+soft-escalation burden.
 Whether 4.4 extra points of coverage justify 4$\times$ the calls of a
 single general monitor is a deployment judgment this one incident cannot
 settle; what it does support is that \emph{if} a team already pays for a
@@ -500,32 +504,49 @@ human-only setup.
 incident, a specialised four-reviewer ensemble sustained strict containment
 action on 78.3\% of unsafe steps versus 73.9\% for an identical
 four-reviewer ensemble at the same model-call count, while matching it
-exactly on detection lag (3 steps), strict false alarms (0), and
+exactly on containment lag (3 steps), strict false alarms (0), and
 benign-investigation burden (2 steps) (Section~\ref{sec:results},
 Table~\ref{tab:results-comparison}). This is a descriptive result from one
 incident replay, not a causal or general claim
 (Section~\ref{sec:limitations}); it does not establish that specialised
 review is superior across incidents, models, or deployment settings.
 
-\textbf{Verifiability:} An auditor needs the decision log described in
-Section~\ref{sec:sensitivity-check}: individual reviewer outputs recorded
-independently, before aggregation, each tagged with a role identifier and
-its own evidence. A lab that cannot produce distinct, role-tagged reviewer
+\textbf{Verifiability:} An auditor needs a decision log: individual reviewer
+outputs recorded independently, before aggregation, each tagged with a role
+identifier and its own evidence. A lab that cannot produce distinct, role-tagged reviewer
 records predating the aggregated decision has not demonstrated compliance
 -- identical-looking "specialised" outputs with no recoverable independent
 record are indistinguishable from relabelled replication.
 
-\textbf{Approximate cost:} Specialisation costs the same model-call count
-as identical-monitor replication at a matched reviewer count
-($\sim$4$\times$ a single general monitor's calls); it is a prompt-design
-difference across reviewer slots, not an increase in reviewer count, so it
-adds no marginal infrastructure cost over an ensemble already deployed. A
-full token/latency comparison was not recoverable from this run's export
-format (Section~\ref{sec:results}); this cost claim is a call-count
-argument, not
+\emph{Scope of this artifact's own auditability:} the evidence package
+accompanying this submission (\texttt{results/}, checked by the accompanying
+offline verifier, \texttt{tools/monitor\_independence\_check.py}) lets a
+third party independently reproduce every aggregate decision, timing metric,
+and signal-key/coverage comparison reported above from committed JSON alone,
+with no lab access or API keys. It does \emph{not} retain structured,
+role-tagged, pre-aggregation reviewer records -- the export format supports a
+\texttt{reviewer\_id} field, but this run's files leave it unset. Reviewer-level
+auditability is therefore a requirement this clause proposes for compliant
+labs, not a property this artifact itself yet demonstrates.
+
+\textbf{Approximate cost:} Specialisation does not increase reviewer count
+or model-call count relative to identical replication at the same reviewer
+count ($\sim$4$\times$ a single general monitor's calls); it is a
+prompt-design difference across reviewer slots, not an increase in reviewer
+count. Token, latency, logging, and operational costs were not fully
+measured in the available export (Section~\ref{sec:results}); this cost
+claim is a call-count argument, not
 yet a measured dollar figure.
 
 % ---------------------------------------------------------------------------
+% Required per submission rules: "A Limitations and Dual-Use Considerations
+% appendix is required," and the page limit excludes references and
+% appendices. \appendix marks everything from here on as appendix material
+% (lettered section numbering), so this section is unambiguously outside the
+% counted main text. Author Contributions and LLM Usage Statement below use
+% \section* (starred, unnumbered) and are unaffected by \appendix -- they do
+% not become "Appendix B"/"Appendix C".
+\appendix
 \section{Limitations and Dual-Use Considerations}
 \label{sec:limitations}
 % TODO(everyone, but Sofia to consolidate): required appendix per submission
@@ -539,7 +560,7 @@ yet a measured dollar figure.
   \item \textbf{Reconstructed, not raw, incident data.} No raw logs from
         either organization are public. Our timeline is built from public
         postmortems and third-party reporting, deliberately reworded to
-        remove hindsight framing (Section 3.1). This is a real limitation:
+        remove hindsight framing (Section~\ref{sec:incident-timeline}). This is a real limitation:
         the underlying reconstruction is one step further from ground truth
         than a raw log would be, and reflects the team's own judgment about
         what would plausibly have been observable at each point.
