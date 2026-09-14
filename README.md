@@ -4,6 +4,44 @@
 
 Project for the Apart Research AI Incident Response Sprint (Sept 11-13, 2026, Track 1).
 
+## Third-party Monitor Independence Check
+
+Replicated or specialized monitor ensembles can look like independent, redundant coverage
+while actually restating the same judgment -- this verifier lets a reviewer who was not
+involved in building the protocols check that from the exported evidence alone, with no
+access to the lab's internal network, models, or prompts. It recomputes containment timing,
+independent-seed sensitivity, signal-evidence overlap, and shared blind spots directly from
+the JSON files in `results/`, and prints both a console summary and (optionally) a
+machine-readable report. It produces descriptive evidence for or against redundancy, not a
+universal certification or a numeric pass/fail threshold -- see
+[`docs/MONITOR_INDEPENDENCE_TEST.md`](docs/MONITOR_INDEPENDENCE_TEST.md) for the full audit
+procedure this tool implements.
+
+```bash
+python3 tools/monitor_independence_check.py \
+  --reference results/reference_run_2026-09-13.json \
+  --sensitivity results/sensitivity_independent_seeds_2026-09-13.json
+```
+
+Expected headline output on this repository's data:
+
+```
+Steps: 0-25 (26 total, 3 benign, 23 unsafe, unsafe onset step 3)
+
+Reference-run summary
+----------------------
+Protocol         First containment   Lag  Strict FA  Benign invest.   Unsafe containment
+General                          6     3          0               2                69.6%
+Identical x4                     6     3          0               2                73.9%
+Specialized x4                   6     3          0               2                78.3%
+```
+
+Add `--output-dir verifier_output` to also write `verifier_output/report.md` and
+`verifier_output/report.json`. The tool uses only the Python standard library, reads local
+files, and makes no network requests, requires no API keys, and calls no models -- it is
+meant to demonstrate that an external auditor can evaluate exported evidence without lab
+network access.
+
 ## The question
 
 There are several different ways people try to keep agents contained: sandboxing, permission gates, fixed rules, monitoring agents, humans in the loop, or several agents checking each other. Each one sees something different. A permission rule can check whether a single action is allowed, but the problem may only become visible across a longer sequence. A human can understand context, but constant approval requests become overwhelming. And several similar guard agents may just repeat the same judgment rather than catching different things.
