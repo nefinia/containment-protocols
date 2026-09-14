@@ -13,9 +13,14 @@ access to the lab's internal network, models, or prompts. It recomputes containm
 independent-seed sensitivity, signal-evidence overlap, and shared blind spots directly from
 the JSON files in `results/`, and prints both a console summary and (optionally) a
 machine-readable report. It produces descriptive evidence for or against redundancy, not a
-universal certification or a numeric pass/fail threshold -- see
-[`docs/MONITOR_INDEPENDENCE_TEST.md`](docs/MONITOR_INDEPENDENCE_TEST.md) for the full audit
-procedure this tool implements.
+universal certification or a numeric pass/fail threshold.
+
+Scope note: this run's exported evidence (`results/*.json`) contains the aggregated
+per-step decision and combined reasoning/signals for each protocol, but not structured,
+role-tagged, pre-aggregation reviewer records (the `reviewer_id` field the schema supports
+is unused in these files). The verifier can therefore check aggregate outcomes and signal
+evidence against each other, but not reviewer-level independence directly -- see the tool's
+own `Limitations` output for the precise boundary.
 
 ```bash
 python3 tools/monitor_independence_check.py \
@@ -42,6 +47,34 @@ files, and makes no network requests, requires no API keys, and calls no models 
 meant to demonstrate that an external auditor can evaluate exported evidence without lab
 network access.
 
+## Reproducing this analysis (no model calls required)
+
+Everything below re-derives the paper's reported numbers from the already-committed
+`results/*.json` files -- no Modal deployment, API key, or new model call is needed:
+
+```bash
+python3 -m unittest tests.test_monitor_independence_check -v
+
+python3 tools/monitor_independence_check.py \
+  --reference results/reference_run_2026-09-13.json \
+  --sensitivity results/sensitivity_independent_seeds_2026-09-13.json \
+  --output-dir verifier_output
+
+python3 protocols/replay_engine.py data/ground_truth_timeline.json
+```
+
+The first two commands use only the Python standard library. Re-running
+`analysis/containment_results.ipynb` top to bottom regenerates every table under
+`analysis/tables/`, every figure under `analysis/figures/`, and `analysis/RESULTS_SUMMARY.md`
+from the same two committed JSON files (requires `jupyter`, `pandas`, `numpy`, and
+`matplotlib`; versions are not pinned in this repository).
+
+This reproduces the *analysis* of already-collected evidence, not the *live experiment*
+that produced `results/*.json` in the first place. The protocol/reviewer implementation
+that produced them is in [`protocols/`](protocols/) (see `protocols/run_all.py`), but
+generating new results with it requires a deployed model endpoint (see Infrastructure
+below) -- it is not reproducible offline.
+
 ## The question
 
 There are several different ways people try to keep agents contained: sandboxing, permission gates, fixed rules, monitoring agents, humans in the loop, or several agents checking each other. Each one sees something different. A permission rule can check whether a single action is allowed, but the problem may only become visible across a longer sequence. A human can understand context, but constant approval requests become overwhelming. And several similar guard agents may just repeat the same judgment rather than catching different things.
@@ -52,13 +85,17 @@ This project asks that question directly, using a real incident as the test bed:
 
 A progressive replay of the incident timeline. At each step, a protocol sees only the information available at that moment -- never the outcome -- and decides whether to continue, restrict, investigate, pause, or terminate.
 
-Protocols compared:
+Protocols compared (three tested; a fourth was scoped but not run):
 - A single general monitor.
 - Several identical monitors (does replication add real coverage, or just more calls making the same judgment?).
 - Specialized reviewers split by category: permissions, task intent, security, downstream consequences.
-- Different points at which a human is brought into the loop.
+- Human-escalation-timing variants (e.g. early always-on vs. threshold-triggered) were scoped for
+  this comparison but not run in the initial implementation -- noted as future work, not a tested result.
 
-Metrics: detection lag, false-alarm rate, human-review burden, cost.
+Metrics: containment lag, strict false-alarm rate, benign-investigation burden, unsafe-containment
+rate, and signal/coverage overlap between protocols. Human-review burden and per-protocol cost
+(token/latency) were defined but are not reported results in this run -- see the paper's
+Limitations for why.
 
 A live design threat: replicated-monitor protocols make more model calls than a single monitor by construction, so any comparison has to control for that rather than let "more calls" masquerade as "better redundancy."
 
@@ -74,13 +111,18 @@ This is a direct extension of [Epistemic Fingerprints](https://sofiagallego.com/
 
 ## Team
 
+Sprint task assignments (see [PROJECT_GUIDELINE.md](PROJECT_GUIDELINE.md) for full role
+descriptions, timeline, and open decisions):
+
 - Replay engine -- jambohaku
 - Protocol implementation -- Muhammad
 - Causal & statistical analysis -- Melody
 - Framing & tradeoffs / clause writing -- tiramisu
 - Coordination & integration -- Sofia
 
-Full role descriptions, timeline, and open decisions: [PROJECT_GUIDELINE.md](PROJECT_GUIDELINE.md).
+This lists sprint-time task ownership, not final paper authorship or byline order --
+for those, see the Author Contributions section of [`paper/paper.tex`](paper/paper.tex),
+which is authoritative.
 
 ## Interfaces
 
@@ -133,8 +175,14 @@ url = get_modal_url()
 wait_for_server(url)
 ```
 
-Model choice (`MODEL_NAME` in `serve_model.py`) is a placeholder pending team discussion -- Qwen2.5-7B-Instruct was right for epistemic-fingerprints' free-text hypothesis generation, but monitor/reviewer judgment quality may call for a different tradeoff.
+Model choice (`MODEL_NAME` in `serve_model.py`): Qwen2.5-7B-Instruct, carried over from
+epistemic-fingerprints' free-text hypothesis generation and used as-is for the results in
+this repository (see `paper/paper.tex`, Methodology). The in-code comment predates that
+decision and has not been updated to reflect it.
 
 ## Status
 
-Sprint underway (Sept 11-13). Incident timeline / ground-truth labeling, the replay harness, and the protocol implementations are in progress.
+Sprint complete (Sept 11-13). Incident timeline / ground-truth labeling, the replay harness,
+and the three tested protocol implementations (general, identical, specialized) ran against
+the live model endpoint; human-escalation-timing variants were scoped but not run -- see
+`paper/paper.tex` for the final write-up and results.

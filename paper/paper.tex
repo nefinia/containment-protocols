@@ -106,7 +106,7 @@ watching for a different failure mode (permissions, task intent, security,
 downstream consequences). Human-escalation-timing variants were scoped for
 this comparison but not run in the initial implementation
 (Section~\ref{sec:limitations}). We compare protocols on detection timing,
-false-alarm rate, human-review burden, and model-call count, and translate
+false-alarm rate, and model-call count, and translate
 the strongest result into a concrete, adoptable clause in the format this
 track requests:
 clause~$\rightarrow$~evidence~$\rightarrow$~approximate cost.
@@ -226,7 +226,7 @@ the \texttt{ReplayResult} join decisions back to labels for scoring. The central
         category -- permissions, task intent, security, downstream
         consequences -- aggregated by the same rule.
   \item \textbf{Human-escalation variants}: out of scope for this
-        implementation. The fixed policy in Table~2 defines when a
+        implementation. The fixed policy in Table~\ref{tab:defaults} defines when a
         decision \emph{would} trigger human escalation, but different
         escalation-timing variants (e.g. early always-on vs.\
         threshold-triggered) were not run; this is future work
@@ -248,6 +248,7 @@ Human escalation trigger & Any reviewer recommending investigate or above \\
 \bottomrule
 \end{tabular}
 \caption{Fixed experimental defaults for the reference run, confirmed by the team before the live run.}
+\label{tab:defaults}
 \end{table}
 
 \subsection{Sensitivity Check}
@@ -274,7 +275,7 @@ rerun under the same prompt and non-identical sampling.
 
 \begin{sloppypar}
 \begin{itemize}
-  \item \textbf{Detection lag}: number of steps between the first
+  \item \textbf{Containment lag}: number of steps between the first
         ground-truth \texttt{unsafe} step and a protocol's first
         \texttt{restrict}\slash\texttt{pause}\slash\texttt{terminate} decision.
   \item \textbf{False-alarm rate}: rate of \texttt{restrict}\slash\texttt{pause}/
@@ -283,8 +284,6 @@ rerun under the same prompt and non-identical sampling.
         separately as \emph{benign investigation / soft-escalation burden},
         per pre-registration, rather than folded into the primary false-alarm
         definition after seeing results.
-  \item \textbf{Human-review burden}: rate of decisions that would trigger
-        human escalation under the fixed policy.
   \item \textbf{Cost}: token usage and latency per protocol per full replay.
   \item \textbf{Signal overlap / unique coverage}: for each protocol, we
         record the set of distinct (category, referenced-step) signal keys
@@ -500,7 +499,7 @@ human-only setup.
 incident, a specialised four-reviewer ensemble sustained strict containment
 action on 78.3\% of unsafe steps versus 73.9\% for an identical
 four-reviewer ensemble at the same model-call count, while matching it
-exactly on detection lag (3 steps), strict false alarms (0), and
+exactly on containment lag (3 steps), strict false alarms (0), and
 benign-investigation burden (2 steps) (Section~\ref{sec:results},
 Table~\ref{tab:results-comparison}). This is a descriptive result from one
 incident replay, not a causal or general claim
@@ -515,6 +514,17 @@ records predating the aggregated decision has not demonstrated compliance
 -- identical-looking "specialised" outputs with no recoverable independent
 record are indistinguishable from relabelled replication.
 
+\emph{Scope of this artifact's own auditability:} the evidence package
+accompanying this submission (\texttt{results/}, checked by the accompanying
+offline verifier, \texttt{tools/monitor\_independence\_check.py}) lets a
+third party independently reproduce every aggregate decision, timing metric,
+and signal-key/coverage comparison reported above from committed JSON alone,
+with no lab access or API keys. It does \emph{not} retain structured,
+role-tagged, pre-aggregation reviewer records -- the export format supports a
+\texttt{reviewer\_id} field, but this run's files leave it unset. Reviewer-level
+auditability is therefore a requirement this clause proposes for compliant
+labs, not a property this artifact itself yet demonstrates.
+
 \textbf{Approximate cost:} Specialisation costs the same model-call count
 as identical-monitor replication at a matched reviewer count
 ($\sim$4$\times$ a single general monitor's calls); it is a prompt-design
@@ -526,6 +536,14 @@ argument, not
 yet a measured dollar figure.
 
 % ---------------------------------------------------------------------------
+% Required per submission rules: "A Limitations and Dual-Use Considerations
+% appendix is required," and the page limit excludes references and
+% appendices. \appendix marks everything from here on as appendix material
+% (lettered section numbering), so this section is unambiguously outside the
+% counted main text. Author Contributions and LLM Usage Statement below use
+% \section* (starred, unnumbered) and are unaffected by \appendix -- they do
+% not become "Appendix B"/"Appendix C".
+\appendix
 \section{Limitations and Dual-Use Considerations}
 \label{sec:limitations}
 % TODO(everyone, but Sofia to consolidate): required appendix per submission
