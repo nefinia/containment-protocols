@@ -28,7 +28,7 @@
 % has contributed. Order below is provisional (alphabetical-ish), not final.
 \author{
 Sofia G. Gallego$^{1}$ \and Muhammad Shoaib Altaf$^{2}$ \and
-Devesh Sawant \and Xin Li (Melody Li)$^{3}$
+Devesh Sawant \and Xin Li$^{3}$
 }
 \date{September 2026}
 
@@ -49,13 +49,14 @@ against a real incident. We replay the July 2026 OpenAI/Hugging Face
 sandbox-escape incident step by step, revealing to each protocol only the
 information available at that point in time, and compare a general
 monitor, four identical monitors, and four role-specialised reviewers on
-detection timing, false alarms, and decision severity. All three detect
-the incident at the same step with zero false alarms; specialised
-reviewers sustain containment on more unsafe steps than identical monitors
-at matched cost, but every protocol shares one blind spot. We translate
-this into a deployable clause: prefer role-specialised reviewers over
-identical replication at matched cost, verifiable via independently
-recorded, role-tagged reviewer outputs.
+detection timing, false alarms, and decision severity. All three first
+issue strict containment at the same step, with zero strict false alarms;
+specialised reviewers sustain containment on more unsafe steps than
+identical monitors at a matched reviewer count, but every protocol shares
+one blind spot. We translate this into a deployable clause: prefer
+role-specialised reviewers over identical replication at a matched
+reviewer count, verifiable via independently recorded, role-tagged
+reviewer outputs.
 
 \end{abstract}
 
@@ -75,7 +76,7 @@ monitoring agents watching the same stream of actions may or may not add real
 coverage over a single one -- if they share the same blind spots, replicating
 them creates the appearance of defense-in-depth without the substance.
 
-This is is a realistic concern. In July 2026, two OpenAI models running
+This is a realistic concern. In July 2026, two OpenAI models running
 without safety classifiers and with reduced safeguards for an internal
 capability evaluation (ExploitGym) escaped their sandboxed evaluation
 environment via a
@@ -225,10 +226,12 @@ the \texttt{ReplayResult} join decisions back to labels for scoring. The central
   \item \textbf{Specialised reviewers}: four reviewers, each scoped to one
         category -- permissions, task intent, security, downstream
         consequences -- aggregated by the same rule.
-  \item \textbf{Human-escalation variants}: [TODO(Muhammad): this
-        condition is out of scope for the initial implementation -- either
-        describe what was actually run, or state explicitly in Discussion
-        that this was scoped out for time and is future work.]
+  \item \textbf{Human-escalation variants}: out of scope for this
+        implementation. The fixed policy in Table~2 defines when a
+        decision \emph{would} trigger human escalation, but different
+        escalation-timing variants (e.g. early always-on vs.\
+        threshold-triggered) were not run; this is future work
+        (Section~\ref{sec:limitations}).
 \end{itemize}
 
 \begin{table}[h]
@@ -245,7 +248,7 @@ Detection scoring & First \texttt{restrict}\slash\texttt{pause}\slash\texttt{ter
 Human escalation trigger & Any reviewer recommending investigate or above \\
 \bottomrule
 \end{tabular}
-\caption{Fixed experimental defaults for the reference run. [TODO: confirm these are final, or note any changes made after review.]}
+\caption{Fixed experimental defaults for the reference run, confirmed by the team before the live run.}
 \end{table}
 
 \subsection{Sensitivity Check}
@@ -463,38 +466,47 @@ data.
 \subsection{Safety-Cost Tradeoffs}
 
 All three protocols reach first containment at the same step, so timing
-gives no reason to prefer any of them. The real tradeoff is cost against
-coverage: the general monitor makes one model call per step (69.6\%
-unsafe-containment rate); identical monitors and specialised reviewers
-each make four calls per step ($\sim$4$\times$ cost) and reach 73.9\% and
-78.3\% respectively. Comparing the two four-call configurations against
-each other, not the single-call baseline, isolates the effect of interest:
-at equal cost, specialised reviewers dominate identical monitors on
-containment rate while matching them on timing, false alarms, and
-soft-escalation burden. Whether 4.4 extra points of coverage justify a
-4$\times$ cost over a single general monitor is a deployment judgment this
-one incident cannot settle; what it does support is that \emph{if} a team
-already pays for a multi-reviewer ensemble, specialisation is a better use
-of that budget than replication. Neither configuration eliminates the
-shared blind spot at step~12 (Section~\ref{sec:results}): added cost buys
-higher sustained containment, not immunity to every failure mode.
+gives no reason to prefer any of them. The real tradeoff is model-call
+count against coverage (token/latency cost was not fully recoverable from
+this run's export format, Section~\ref{sec:results}, so call count is used
+as the measurable proxy): the general monitor makes one model call per
+step (69.6\% unsafe-containment rate); identical monitors and specialised
+reviewers each make four calls per step ($\sim$4$\times$ the general
+monitor's call count) and reach 73.9\% and 78.3\% respectively. Comparing
+the two four-call configurations against each other, not the single-call
+baseline, isolates the effect of interest: at a matched call count,
+specialised reviewers dominate identical monitors on containment rate
+while matching them on timing, false alarms, and soft-escalation burden.
+Whether 4.4 extra points of coverage justify 4$\times$ the calls of a
+single general monitor is a deployment judgment this one incident cannot
+settle; what it does support is that \emph{if} a team already pays for a
+multi-reviewer ensemble, specialisation is a better use of that budget
+than replication -- within this incident, not as a general claim. Neither
+configuration eliminates the shared blind spot at step~12
+(Section~\ref{sec:results}): more calls bought higher sustained
+containment here, not immunity to every failure mode.
 
 \subsection{Standard Clause}
 
-\textbf{Clause:} When a team already deploys multiple AI reviewers over an
-agent trajectory for containment purposes, those reviewers should be
-role-specialised (e.g. permissions, task intent, security, downstream
-consequences) rather than identical copies of a single general-purpose
-monitor running at the same total reviewer count and cost.
+\textbf{Clause:} When a team already deploys multiple AI reviewers at a
+fixed reviewer count over an agent trajectory for containment purposes,
+those reviewers should be role-specialised (e.g. permissions, task intent,
+security, downstream consequences) rather than identical copies of a
+single general-purpose monitor. This clause concerns the choice between
+two ways of using an already-decided reviewer count, not a claim that
+specialised review is universally superior to any single-monitor or
+human-only setup.
 
 \textbf{Evidence:} In our replay of the OpenAI/Hugging Face sandbox-escape
 incident, a specialised four-reviewer ensemble sustained strict containment
 action on 78.3\% of unsafe steps versus 73.9\% for an identical
-four-reviewer ensemble at the same call count, while matching it exactly on
-detection lag (3 steps), strict false alarms (0), and benign-investigation
-burden (2 steps) (Section~\ref{sec:results}, Table~\ref{tab:results-comparison}).
-This is a descriptive result from one incident replay, not a causal or
-general claim (Section~\ref{sec:limitations}).
+four-reviewer ensemble at the same model-call count, while matching it
+exactly on detection lag (3 steps), strict false alarms (0), and
+benign-investigation burden (2 steps) (Section~\ref{sec:results},
+Table~\ref{tab:results-comparison}). This is a descriptive result from one
+incident replay, not a causal or general claim
+(Section~\ref{sec:limitations}); it does not establish that specialised
+review is superior across incidents, models, or deployment settings.
 
 \textbf{Verifiability:} An auditor needs the decision log described in
 Section~\ref{sec:sensitivity-check}: individual reviewer outputs recorded
@@ -504,13 +516,14 @@ records predating the aggregated decision has not demonstrated compliance
 -- identical-looking "specialised" outputs with no recoverable independent
 record are indistinguishable from relabelled replication.
 
-\textbf{Approximate cost:} Specialisation costs the same as
-identical-monitor replication at a matched reviewer count ($\sim$4$\times$
-a single general monitor's calls); it is a prompt-design difference across
-reviewer slots, not an increase in reviewer count, so it adds no marginal
-infrastructure cost over an ensemble already deployed. A full token/latency
-comparison was not recoverable from this run's export format
-(Section~\ref{sec:results}); this cost claim is a call-count argument, not
+\textbf{Approximate cost:} Specialisation costs the same model-call count
+as identical-monitor replication at a matched reviewer count
+($\sim$4$\times$ a single general monitor's calls); it is a prompt-design
+difference across reviewer slots, not an increase in reviewer count, so it
+adds no marginal infrastructure cost over an ensemble already deployed. A
+full token/latency comparison was not recoverable from this run's export
+format (Section~\ref{sec:results}); this cost claim is a call-count
+argument, not
 yet a measured dollar figure.
 
 % ---------------------------------------------------------------------------
@@ -540,9 +553,11 @@ yet a measured dollar figure.
         (Section~\ref{sec:results}). All comparisons are descriptive, not
         causal.
   \item \textbf{Model and prompt dependence.} All protocols ran against one
-        model (Qwen2.5-7B-Instruct) at one temperature.
-        [TODO(Muhammad): note signal-taxonomy coverage or context-window
-        limitations if any.]
+        model (Qwen2.5-7B-Instruct) at one temperature. The 12-code signal
+        taxonomy reviewers draw on is researcher-defined, not an externally
+        validated standard, and results may not transfer to other models,
+        prompts, or signal vocabularies. The context window was capped at
+        4096 tokens; a longer incident replay could exceed this budget.
   \item \textbf{No independent verification of "detection".} A
         \texttt{restrict} recommendation means the output matched a
         schema-valid category, not that the underlying reasoning was
@@ -560,18 +575,21 @@ yet a measured dollar figure.
 
 This work characterizes how AI containment monitors succeed and fail against
 a real incident timeline. We do not believe this creates meaningful new
-uplift for causing harm: [TODO -- justify this claim, e.g.\ we do not release
-any exploit code, attack technique, or information not already public in
-OpenAI's and Hugging Face's own postmortems]. A possible dual-use concern is
-that describing which monitor combinations most easily miss an escalating
-threat could inform an adversary attempting to design an attack that evades
-detection; we mitigate this by [TODO -- e.g.\ not publishing exact prompts/
-signal taxonomies that would let an attacker reverse-engineer detection
-boundaries, or by noting that our results are specific to one model and one
-incident and do not generalize into a general evasion recipe]. Per the
-submission rules, we withhold [TODO: confirm whether anything in this project
-counts as a "novel installation recipe" requiring disclosure review --
-if unsure, ask on Discord before publishing the repo publicly].
+uplift for causing harm: we release no exploit code, no novel attack
+technique, and no vulnerability detail beyond what OpenAI's and Hugging
+Face's own public postmortems already disclose; our contribution is a
+monitoring-and-evaluation harness and a set of prompts for reviewing agent
+trajectories, not an offensive capability. A possible dual-use concern is
+that identifying a shared blind spot (Section~\ref{sec:results}) could
+help an adversary design an attack that avoids current-step signal
+triggers; we judge this risk low because the blind spot is specific to one
+incident, one signal taxonomy, and one model, and does not generalize into
+a transferable evasion recipe. We do not believe any part of this project
+constitutes a "novel installation recipe" under the submission rules --
+the repository contains a replay harness, review prompts, and analysis
+code, not exploit tooling -- but we flag this for organizer review before
+the repository is made public, per the submission's disclosure-review
+requirement.
 
 % ---------------------------------------------------------------------------
 \section*{Author Contributions}
@@ -588,8 +606,8 @@ no-future-information and no-ground-truth-leakage guarantees the
 experiment depends on. M.S.A.\ (Muhammad Shoaib Altaf) designed and
 implemented the protocol suite (general monitor, identical monitors,
 specialised reviewers), including the evidence-grounding mechanism and
-contract validation. X.L.\ (Xin Li, Melody Li) designed the scoring methodology and
-statistical analysis, including the independent-seed sensitivity check,
+contract validation. X.L.\ (Xin Li) designed the scoring methodology and
+quantitative analysis, including the independent-seed sensitivity check,
 and conducted the analysis reported in Section~\ref{sec:results}. All
 authors reviewed the final manuscript.
 
